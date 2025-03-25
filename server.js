@@ -8,7 +8,7 @@ app.use(express.static('public')); // Serve rfid_status.html and return_box_stat
 app.use(express.json());
 
 // MongoDB Connection
-const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/rfid_library';
+const mongoUri = process.env.MONGO_URI || 'mongodb+srv://Admin:admin@library.8bgvj.mongodb.net/bookManagement?retryWrites=true&w=majority&appName=Library';
 mongoose
   .connect(mongoUri, {
     serverSelectionTimeoutMS: 20000,
