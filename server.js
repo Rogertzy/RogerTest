@@ -122,36 +122,36 @@ async function processReturn(epc, readerIp) {
 app.post('/api/rfid-update', ensureDbConnected, async (req, res) => {
   const { readerIp, epc, type, detected = true } = req.body;
   if (!readerIp || !epc || !type) {
-    return res.status(400).json({ error: 'Missing required fields: readerIp, epc, type' });
+      return res.status(400).json({ error: 'Missing required fields: readerIp, epc, type' });
   }
 
   const store = type === 'shelf' ? detectedEpcs.shelf : detectedEpcs.returnBox;
   try {
-    if (detected) {
-      console.log(`EPC '${epc}' detected by ${type} reader ${readerIp}`);
-      if (type === 'shelf') await processShelfDetection(epc, readerIp);
-      else if (type === 'return_box') await processReturn(epc, readerIp);
-      else throw new Error(`Invalid type: ${type}`);
-      store.set(epc, { timestamp: Date.now(), readerIp });
-    } else {
-      console.log(`EPC '${epc}' no longer detected by ${type} reader ${readerIp}`);
-      store.delete(epc);
-      const existingEpc = await Epc.findOne({ epc });
-      if (existingEpc && existingEpc.status !== 'borrowed') {
-        const logMessage = `${new Date().toLocaleTimeString()} - EPC '${epc}' no longer detected by ${type} reader ${readerIp}`;
-        existingEpc.status = 'borrowed';
-        existingEpc.readerIp = null;
-        existingEpc.timestamp = Date.now();
-        existingEpc.logs = existingEpc.logs || [];
-        existingEpc.logs.push({ message: logMessage, timestamp: Date.now() });
-        await existingEpc.save();
-        console.log(`EPC '${epc}' status changed to 'borrowed'`);
+      if (detected) {
+          console.log(`EPC '${epc}' detected by ${type} reader ${readerIp}`);
+          if (type === 'shelf') await processShelfDetection(epc, readerIp);
+          else if (type === 'return_box') await processReturn(epc, readerIp);
+          else throw new Error(`Invalid type: ${type}`);
+          store.set(epc, { timestamp: Date.now(), readerIp });
+      } else {
+          console.log(`EPC '${epc}' no longer detected by ${type} reader ${readerIp}`);
+          store.delete(epc); // Remove from in-memory store
+          const existingEpc = await Epc.findOne({ epc });
+          if (existingEpc && existingEpc.status !== 'borrowed') {
+              const logMessage = `${new Date().toLocaleTimeString()} - EPC '${epc}' no longer detected by ${type} reader ${readerIp}`;
+              existingEpc.status = 'borrowed';
+              existingEpc.readerIp = null;
+              existingEpc.timestamp = Date.now();
+              existingEpc.logs = existingEpc.logs || [];
+              existingEpc.logs.push({ message: logMessage, timestamp: Date.now() });
+              await existingEpc.save();
+              console.log(`EPC '${epc}' status changed to 'borrowed'`);
+          }
       }
-    }
-    res.status(200).json({ message: 'EPC processed' });
+      res.status(200).json({ message: 'EPC processed' });
   } catch (error) {
-    console.error('Error processing EPC:', error.message);
-    res.status(500).json({ error: error.message || 'Internal server error' });
+      console.error('Error processing EPC:', error.message);
+      res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 

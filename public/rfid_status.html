@@ -156,13 +156,27 @@
 
         async function fetchBookshelfData() {
             try {
-                const response = await fetch('https://rfid-library.onrender.com/api/rfid-readers');
+                const response = await fetch('https://your-app-name.onrender.com/api/rfid-readers');
                 if (!response.ok) {
                     throw new Error(`HTTP error! Status: ${response.status} - ${response.statusText}`);
                 }
                 const readers = await response.json();
                 const shelfData = readers.find(reader => reader.port === 'shelf');
                 updateBookshelf(shelfData);
+                // Refresh the modal if it's open
+                if (selectedReaderIp) {
+                    const epcsForReader = shelfData.epcs.filter(epc => epc.readerIp === selectedReaderIp);
+                    currentBooks = epcsForReader;
+                    // Adjust currentBookIndex if the current book was removed
+                    if (currentBookIndex >= currentBooks.length) {
+                        currentBookIndex = currentBooks.length - 1;
+                    }
+                    if (currentBooks.length === 0) {
+                        closeModal();
+                    } else {
+                        updateModal();
+                    }
+                }
             } catch (error) {
                 console.error('Detailed error fetching RFID data:', error);
                 document.getElementById('bookshelf').innerHTML = `<p>Error loading bookshelf: ${error.message}</p>`;
@@ -214,7 +228,7 @@
                 return;
             }
             try {
-                const response = await fetch('https://rfid-library.onrender.com/api/shelves', {
+                const response = await fetch('https://your-app-name.onrender.com/api/shelves', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name: `Bookshelf ${readerIp.split('.').pop()}`, readerIp }),
