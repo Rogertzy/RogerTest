@@ -5,7 +5,109 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RFID Bookshelves</title>
     <style>
-        /* Your existing styles remain unchanged */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .bookshelves {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .bookshelf {
+            width: 300px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .bookshelf:hover {
+            transform: scale(1.05);
+        }
+        .shelf-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+        }
+        .shelf-header h2 {
+            margin: 0;
+            font-size: 18px;
+        }
+        .status {
+            padding: 5px 10px;
+            border-radius: 12px;
+            font-size: 14px;
+        }
+        .status-active {
+            background-color: #28a745;
+        }
+        .status-inactive {
+            background-color: #dc3545;
+        }
+        .shelf-placeholder {
+            padding: 20px;
+            text-align: center;
+            color: #666;
+        }
+        .book-display {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .book-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+        .side-book {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        .side-book:last-child {
+            border-bottom: none;
+        }
+        .book-info {
+            flex-grow: 1;
+            margin-right: 10px;
+        }
+        .book-info h3 {
+            margin: 0;
+            font-size: 16px;
+            color: #333;
+        }
+        .book-info p {
+            margin: 5px 0;
+            font-size: 14px;
+            color: #666;
+        }
     </style>
 </head>
 <body>
@@ -17,7 +119,6 @@
 
     <script>
         let currentReaders = [];
-        let currentIndex = 0;
         let intervalId = null;
 
         async function fetchBookshelfData() {
@@ -67,7 +168,33 @@
             };
         }
 
-        // Rest of the script (updateBookContainer, createSideBook, etc.) remains unchanged
+        function updateBookContainer(epcs) {
+            const bookContainer = document.getElementById('bookContainer');
+            bookContainer.innerHTML = '';
+            if (epcs.length === 0) {
+                bookContainer.innerHTML = '<p>No books detected.</p>';
+                return;
+            }
+            epcs.forEach(epcData => {
+                const bookElement = createSideBook(epcData);
+                bookContainer.appendChild(bookElement);
+            });
+        }
+
+        function createSideBook(epcData) {
+            const book = document.createElement('div');
+            book.className = 'side-book';
+            book.innerHTML = `
+                <div class="book-info">
+                    <h3>${epcData.title || 'Unknown Title'}</h3>
+                    <p>Author: ${epcData.author || 'Unknown Author'}</p>
+                    <p>EPC: ${epcData.epc}</p>
+                    <p>Status: ${epcData.status}</p>
+                    <p>ISBN: ${epcData.industryIdentifier || 'N/A'}</p>
+                </div>
+            `;
+            return book;
+        }
 
         fetchBookshelfData();
         intervalId = setInterval(fetchBookshelfData, 2000);
