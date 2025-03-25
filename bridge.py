@@ -58,7 +58,7 @@ shelves_inner_frame = tk.Frame(shelves_frame, borderwidth=1, relief="sunken")
 shelves_inner_frame.pack(fill="both", expand=True)
 shelves_scroll = tk.Scrollbar(shelves_inner_frame, orient="vertical")
 shelves_scroll.pack(side="right", fill="y")
-shelves_text = tk.Text(shelves_inner_frame, height=20, width=40, yscrollcommand=shelves_scroll.set, borderwidth=0)  # Width changed back to 40
+shelves_text = tk.Text(shelves_inner_frame, height=20, width=40, yscrollcommand=shelves_scroll.set, borderwidth=0)
 shelves_text.pack(fill="both", expand=True)
 shelves_scroll.config(command=shelves_text.yview)
 
@@ -70,7 +70,7 @@ return_boxes_inner_frame = tk.Frame(return_boxes_frame, borderwidth=1, relief="s
 return_boxes_inner_frame.pack(fill="both", expand=True)
 return_boxes_scroll = tk.Scrollbar(return_boxes_inner_frame, orient="vertical")
 return_boxes_scroll.pack(side="right", fill="y")
-return_boxes_text = tk.Text(return_boxes_inner_frame, height=20, width=40, yscrollcommand=return_boxes_scroll.set, borderwidth=0)  # Width changed to 40
+return_boxes_text = tk.Text(return_boxes_inner_frame, height=20, width=40, yscrollcommand=return_boxes_scroll.set, borderwidth=0)
 return_boxes_text.pack(fill="both", expand=True)
 return_boxes_scroll.config(command=return_boxes_text.yview)
 
@@ -93,15 +93,6 @@ def get_next_default_name(box_type):
         if not any(item["name"] == name for item in items):
             return name
         count += 1
-
-def get_item_name(ip):
-    for shelf in config["shelves"]:
-        if shelf["ip"] == ip:
-            return shelf["name"]
-    for box in config["return_boxes"]:
-        if box["ip"] == ip:
-            return box["name"]
-    return "Unknown"
 
 def update_lists():
     # Clear existing content
@@ -278,10 +269,21 @@ def show_item_log(ip):
 
 def show_item_log_window(ip):
     # Get the item name for the IP
-    item_name = get_item_name(ip)
+    item_name = None
+    for shelf in config["shelves"]:
+        if shelf["ip"] == ip:
+            item_name = shelf["name"]
+            break
+    for box in config["return_boxes"]:
+        if box["ip"] == ip:
+            item_name = box["name"]
+            break
+    if not item_name:
+        item_name = "Unknown"
+    
     # Create a new window for the log
     log_window = tk.Toplevel(root)
-    log_window.title(f"{item_name}:{ip}")  # Changed title to "Item Name:IP"
+    log_window.title(f"{item_name}:{ip}")
     log_window.geometry("400x300")
     log_window.transient(root)
     log_window.grab_set()
@@ -381,7 +383,7 @@ def handle_client(client, ip):
     # Check for non-detected EPCs
     now = datetime.now().timestamp()
     for epc in list(detected_epcs[ip].keys()):
-        if now - detected_epcs[ip][epc]["last_seen"] > 5:  # 5-second timeout
+        if isinstance(detected_epcs[ip][epc], dict) and now - detected_epcs[ip][epc]["last_seen"] > 5:  # 5-second timeout
             if detected_epcs[ip][epc]["sent"]:
                 log_message(f"EPC '{epc}' no longer detected by {box_type} reader {ip}", ip)
                 send_to_render(ip, epc, box_type, detected=False)

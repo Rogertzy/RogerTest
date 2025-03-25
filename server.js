@@ -122,36 +122,36 @@ async function processReturn(epc, readerIp) {
 app.post('/api/rfid-update', ensureDbConnected, async (req, res) => {
   const { readerIp, epc, type, detected = true } = req.body;
   if (!readerIp || !epc || !type) {
-      return res.status(400).json({ error: 'Missing required fields: readerIp, epc, type' });
+    return res.status(400).json({ error: 'Missing required fields: readerIp, epc, type' });
   }
 
   const store = type === 'shelf' ? detectedEpcs.shelf : detectedEpcs.returnBox;
   try {
-      if (detected) {
-          console.log(`EPC '${epc}' detected by ${type} reader ${readerIp}`);
-          if (type === 'shelf') await processShelfDetection(epc, readerIp);
-          else if (type === 'return_box') await processReturn(epc, readerIp);
-          else throw new Error(`Invalid type: ${type}`);
-          store.set(epc, { timestamp: Date.now(), readerIp });
-      } else {
-          console.log(`EPC '${epc}' no longer detected by ${type} reader ${readerIp}`);
-          store.delete(epc); // Remove from in-memory store
-          const existingEpc = await Epc.findOne({ epc });
-          if (existingEpc && existingEpc.status !== 'borrowed') {
-              const logMessage = `${new Date().toLocaleTimeString()} - EPC '${epc}' no longer detected by ${type} reader ${readerIp}`;
-              existingEpc.status = 'borrowed';
-              existingEpc.readerIp = null;
-              existingEpc.timestamp = Date.now();
-              existingEpc.logs = existingEpc.logs || [];
-              existingEpc.logs.push({ message: logMessage, timestamp: Date.now() });
-              await existingEpc.save();
-              console.log(`EPC '${epc}' status changed to 'borrowed'`);
-          }
+    if (detected) {
+      console.log(`EPC '${epc}' detected by ${type} reader ${readerIp}`);
+      if (type === 'shelf') await processShelfDetection(epc, readerIp);
+      else if (type === 'return_box') await processReturn(epc, readerIp);
+      else throw new Error(`Invalid type: ${type}`);
+      store.set(epc, { timestamp: Date.now(), readerIp });
+    } else {
+      console.log(`EPC '${epc}' no longer detected by ${type} reader ${readerIp}`);
+      store.delete(epc); // Remove from in-memory store
+      const existingEpc = await Epc.findOne({ epc });
+      if (existingEpc && existingEpc.status !== 'borrowed') {
+        const logMessage = `${new Date().toLocaleTimeString()} - EPC '${epc}' no longer detected by ${type} reader ${readerIp}`;
+        existingEpc.status = 'borrowed';
+        existingEpc.readerIp = null;
+        existingEpc.timestamp = Date.now();
+        existingEpc.logs = existingEpc.logs || [];
+        existingEpc.logs.push({ message: logMessage, timestamp: Date.now() });
+        await existingEpc.save();
+        console.log(`EPC '${epc}' status changed to 'borrowed'`);
       }
-      res.status(200).json({ message: 'EPC processed' });
+    }
+    res.status(200).json({ message: 'EPC processed' });
   } catch (error) {
-      console.error('Error processing EPC:', error.message);
-      res.status(500).json({ error: error.message || 'Internal server error' });
+    console.error('Error processing EPC:', error.message);
+    res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
@@ -219,38 +219,6 @@ app.post('/api/shelves', ensureDbConnected, async (req, res) => {
   }
 });
 
-app.put('/api/shelves/:readerIp', ensureDbConnected, async (req, res) => {
-  const { readerIp } = req.params;
-  const { name } = req.body;
-  if (!name) {
-    return res.status(400).json({ error: 'Name is required' });
-  }
-  try {
-    const shelf = await Shelf.findOneAndUpdate({ readerIp }, { name }, { new: true });
-    if (!shelf) {
-      return res.status(404).json({ error: 'Shelf not found' });
-    }
-    res.json(shelf);
-  } catch (error) {
-    console.error('Error updating shelf:', error.message);
-    res.status(500).json({ error: 'Failed to update shelf' });
-  }
-});
-
-app.delete('/api/shelves/:readerIp', ensureDbConnected, async (req, res) => {
-  const { readerIp } = req.params;
-  try {
-    const shelf = await Shelf.findOneAndDelete({ readerIp });
-    if (!shelf) {
-      return res.status(404).json({ error: 'Shelf not found' });
-    }
-    res.json({ message: 'Shelf deleted' });
-  } catch (error) {
-    console.error('Error deleting shelf:', error.message);
-    res.status(500).json({ error: 'Failed to delete shelf' });
-  }
-});
-
 // API to manage return boxes
 app.post('/api/return-boxes', ensureDbConnected, async (req, res) => {
   const { name, readerIp } = req.body;
@@ -268,76 +236,6 @@ app.post('/api/return-boxes', ensureDbConnected, async (req, res) => {
   } catch (error) {
     console.error('Error adding return box:', error.message);
     res.status(500).json({ error: 'Failed to add return box' });
-  }
-});
-
-app.put('/api/return-boxes/:readerIp', ensureDbConnected, async (req, res) => {
-  const { readerIp } = req.params;
-  const { name } = req.body;
-  if (!name) {
-    return res.status(400).json({ error: 'Name is required' });
-  }
-  try {
-    const returnBox = await ReturnBox.findOneAndUpdate({ readerIp }, { name }, { new: true });
-    if (!returnBox) {
-      return res.status(404).json({ error: 'Return box not found' });
-    }
-    res.json(returnBox);
-  } catch (error) {
-    console.error('Error updating return box:', error.message);
-    res.status(500).json({ error: 'Failed to update return box' });
-  }
-});
-
-app.delete('/api/return-boxes/:readerIp', ensureDbConnected, async (req, res) => {
-  const { readerIp } = req.params;
-  try {
-    const returnBox = await ReturnBox.findOneAndDelete({ readerIp });
-    if (!returnBox) {
-      return res.status(404).json({ error: 'Return box not found' });
-    }
-    res.json({ message: 'Return box deleted' });
-  } catch (error) {
-    console.error('Error deleting return box:', error.message);
-    res.status(500).json({ error: 'Failed to delete return box' });
-  }
-});
-
-// API to manually add EPC (for testing)
-app.post('/api/epc', ensureDbConnected, async (req, res) => {
-  const { epc, title, author, status, industryIdentifier } = req.body;
-  if (!epc || !title || !author || !status) {
-    return res.status(400).json({ error: 'EPC, title, author, and status are required' });
-  }
-  if (!['borrowed', 'in return box', 'in library'].includes(status)) {
-    return res.status(400).json({ error: 'Invalid status value' });
-  }
-
-  try {
-    const existingEpc = await Epc.findOne({ epc });
-    if (existingEpc) {
-      return res.status(400).json({ error: 'EPC already exists' });
-    }
-    const newEpc = new Epc({
-      epc,
-      title,
-      author,
-      status,
-      industryIdentifier: industryIdentifier || ['N/A'],
-      timestamp: Date.now(),
-      logs: [
-        {
-          message: `${new Date().toLocaleTimeString()} - EPC '${epc}' manually added with status '${status}'`,
-          timestamp: Date.now(),
-        },
-      ],
-    });
-    await newEpc.save();
-    console.log(`Manually added EPC '${epc}' with status '${status}'`);
-    res.status(201).json(newEpc);
-  } catch (error) {
-    console.error('Error adding EPC:', error.message);
-    res.status(500).json({ error: 'Failed to add EPC' });
   }
 });
 
