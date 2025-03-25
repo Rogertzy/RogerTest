@@ -38,7 +38,7 @@ log_text = tk.Text(log_inner_frame, height=5, width=80, state="disabled", yscrol
 log_text.pack(fill="both", expand=True)
 log_scroll.config(command=log_text.yview)
 
-# Buttons (all in one row, centered)
+# Buttons
 button_frame = tk.Frame(root)
 button_frame.pack(pady=5)
 tk.Button(button_frame, text="Add Bookshelf", command=lambda: add_box("shelf")).pack(side="left", padx=5)
@@ -46,7 +46,7 @@ tk.Button(button_frame, text="Add Return Box", command=lambda: add_box("return_b
 tk.Button(button_frame, text="Edit", command=lambda: edit_selected()).pack(side="left", padx=5)
 tk.Button(button_frame, text="Remove", command=lambda: remove_selected()).pack(side="left", padx=5)
 
-# Bookshelves and Return Boxes Display (side by side)
+# Bookshelves and Return Boxes Display
 lists_frame = tk.Frame(root)
 lists_frame.pack(fill="x", padx=10, pady=5)
 
@@ -94,15 +94,22 @@ def get_next_default_name(box_type):
             return name
         count += 1
 
+def get_item_name(ip):
+    for shelf in config["shelves"]:
+        if shelf["ip"] == ip:
+            return shelf["name"]
+    for box in config["return_boxes"]:
+        if box["ip"] == ip:
+            return box["name"]
+    return "Unknown"
+
 def update_lists():
-    # Clear existing content
     shelves_text.config(state="normal")
     shelves_text.delete("1.0", tk.END)
     return_boxes_text.config(state="normal")
     return_boxes_text.delete("1.0", tk.END)
     status_widgets.clear()
 
-    # Update Bookshelves
     for i, shelf in enumerate(config["shelves"]):
         ip = shelf["ip"]
         status = detected_epcs.get(ip, {}).get('status', 'grey')
@@ -114,7 +121,6 @@ def update_lists():
         shelves_text.insert(tk.END, f" {shelf['name']} ({ip})\n")
         status_widgets[ip] = {'canvas': canvas, 'light': light, 'text_widget': shelves_text, 'line': i+1}
 
-    # Update Return Boxes
     for i, box in enumerate(config["return_boxes"]):
         ip = box["ip"]
         status = detected_epcs.get(ip, {}).get('status', 'grey')
@@ -147,7 +153,6 @@ def add_box(box_type):
     dialog.geometry("350x200")
     dialog.transient(root)
     dialog.grab_set()
-    # Center dialog within root window
     dialog.update_idletasks()
     x = root.winfo_x() + (root.winfo_width() - dialog.winfo_width()) // 2
     y = root.winfo_y() + (root.winfo_height() - dialog.winfo_height()) // 2
@@ -155,11 +160,11 @@ def add_box(box_type):
 
     tk.Label(dialog, text="Name:", font=("Arial", 10)).pack(pady=10)
     name_entry = tk.Entry(dialog, width=30)
-    name_entry.insert(0, get_next_default_name(box_type))  # Default name
+    name_entry.insert(0, get_next_default_name(box_type))
     name_entry.pack(pady=5)
     tk.Label(dialog, text="IP:", font=("Arial", 10)).pack(pady=10)
     ip_entry = tk.Entry(dialog, width=30)
-    ip_entry.insert(0, "192.168.1.1")  # Default IP
+    ip_entry.insert(0, "192.168.1.1")
     ip_entry.pack(pady=5)
 
     def submit():
@@ -194,7 +199,6 @@ def edit_item(box_type, idx, item):
     dialog.geometry("350x200")
     dialog.transient(root)
     dialog.grab_set()
-    # Center dialog
     dialog.update_idletasks()
     x = root.winfo_x() + (root.winfo_width() - dialog.winfo_width()) // 2
     y = root.winfo_y() + (root.winfo_height() - dialog.winfo_height()) // 2
@@ -222,7 +226,7 @@ def edit_item(box_type, idx, item):
             messagebox.showwarning("Input Error", "Both Name and IP are required.")
 
     tk.Button(dialog, text="Save", command=submit).pack(pady=20)
-    
+
 def remove_selected():
     selected_ip = get_selected_ip()
     if selected_ip:
@@ -231,11 +235,12 @@ def remove_selected():
                 config["shelves"].pop(i)
                 save_config()
                 update_lists()
-                try:
-                    response = requests.delete(f"https://rfid-library.onrender.com/api/shelves/{selected_ip}")
-                    log_message(f"Deleted shelf {selected_ip} from server - Status: {response.status_code}")
-                except Exception as e:
-                    log_message(f"Error deleting shelf {selected_ip} from server: {str(e)}")
+                return
+        for i, box in enumerate(config["return_boxes"]):
+            if box["ip"] == selected_ip:
+                config["return_boxes"].pop(i)
+                save_config()
+                update_lists()
                 return
 
 def get_selected_ip():
@@ -245,7 +250,6 @@ def get_selected_ip():
     return None
 
 def show_item_log(ip):
-    # Highlight selected item
     for widget_ip, widgets in status_widgets.items():
         text_widget = widgets['text_widget']
         line = widgets['line']
@@ -267,26 +271,12 @@ def show_item_log(ip):
     log_text.config(state="disabled")
 
 def show_item_log_window(ip):
-    # Get the item name for the IP
-    item_name = None
-    for shelf in config["shelves"]:
-        if shelf["ip"] == ip:
-            item_name = shelf["name"]
-            break
-    for box in config["return_boxes"]:
-        if box["ip"] == ip:
-            item_name = box["name"]
-            break
-    if not item_name:
-        item_name = "Unknown"
-    
-    # Create a new window for the log
+    item_name = get_item_name(ip)
     log_window = tk.Toplevel(root)
     log_window.title(f"{item_name}:{ip}")
     log_window.geometry("400x300")
     log_window.transient(root)
     log_window.grab_set()
-    # Center window
     log_window.update_idletasks()
     x = root.winfo_x() + (root.winfo_width() - log_window.winfo_width()) // 2
     y = root.winfo_y() + (root.winfo_height() - log_window.winfo_height()) // 2
@@ -300,7 +290,6 @@ def show_item_log_window(ip):
     log_display.pack(fill="both", expand=True)
     log_scroll.config(command=log_display.yview)
 
-    # Populate the log
     log_display.config(state="normal")
     if ip in detected_epcs and 'log' in detected_epcs[ip]:
         for entry in detected_epcs[ip]['log']:
@@ -318,7 +307,6 @@ def on_text_double_click(event, ip):
         show_item_log_window(ip)
 
 def get_ip_from_text(text_widget, event):
-    # Get the line number where the click occurred
     index = text_widget.index(f"@{event.x},{event.y}")
     line = int(index.split('.')[0])
     for ip, widgets in status_widgets.items():
@@ -349,29 +337,49 @@ def tcp_server():
             break
 
 def handle_client(client, ip):
-    log_message(f"Client connected: {ip}", ip)
-    send_connection_status(ip, True)  # Send "connected" status
+    shelf_ips = [s["ip"] for s in config["shelves"]]
+    return_box_ips = [s["ip"] for s in config["return_boxes"]]
+    box_type = "shelf" if ip in shelf_ips else "return_box" if ip in return_box_ips else None
+    if not box_type:
+        client.close()
+        return
+
+    if ip not in detected_epcs:
+        detected_epcs[ip] = {}
+    update_status(ip, 'green')
+    send_connection_status(ip, True)
+
     while True:
         try:
             data = client.recv(1024)
             if not data:
                 break
-            # ... existing data processing ...
-        except socket.error as e:
-            log_message(f"Connection error for {ip}: {e}", ip)
+            epc = extract_epc(data)
+            if epc:
+                now = datetime.now().timestamp()
+                if epc not in detected_epcs[ip]:
+                    detected_epcs[ip][epc] = {"last_seen": now, "sent": False}
+                    log_message(f"EPC '{epc}' detected by {box_type} reader {ip}", ip)
+                    send_to_render(ip, epc, box_type)
+                    detected_epcs[ip][epc]["sent"] = True
+                else:
+                    detected_epcs[ip][epc]["last_seen"] = now
+        except:
+            update_status(ip, 'red')
             break
-    send_connection_status(ip, False)  # Send "disconnected" status
-    client.close()
 
-def send_connection_status(ip, connected):
-    try:
-        response = requests.post("https://rfid-library.onrender.com/api/connection-status", json={
-            "readerIp": ip,
-            "connected": connected
-        }, headers={"Content-Type": "application/json"})
-        log_message(f"Sent connection status for {ip}: {'connected' if connected else 'disconnected'} - Status: {response.status_code}", ip)
-    except Exception as e:
-        log_message(f"Error sending connection status for {ip}: {str(e)}", ip)
+    now = datetime.now().timestamp()
+    for epc in list(detected_epcs[ip].keys()):
+        if now - detected_epcs[ip][epc]["last_seen"] > 5:
+            if detected_epcs[ip][epc]["sent"]:
+                log_message(f"EPC '{epc}' no longer detected by {box_type} reader {ip}", ip)
+                send_to_render(ip, epc, box_type, detected=False)
+            del detected_epcs[ip][epc]
+    if not detected_epcs[ip]:
+        update_status(ip, 'grey')
+
+    send_connection_status(ip, False)
+    client.close()
 
 def send_to_render(ip, epc, box_type, detected=True):
     try:
@@ -385,7 +393,17 @@ def send_to_render(ip, epc, box_type, detected=True):
     except Exception as e:
         log_message(f"Error sending EPC '{epc}' to Render: {str(e)}", ip)
 
-# Bind click and double-click events to Text widgets
+def send_connection_status(ip, connected):
+    try:
+        response = requests.post("https://rfid-library.onrender.com/api/connection-status", json={
+            "readerIp": ip,
+            "connected": connected
+        }, headers={"Content-Type": "application/json"})
+        log_message(f"Sent connection status for {ip}: {'connected' if connected else 'disconnected'} - Status: {response.status_code}", ip)
+    except Exception as e:
+        log_message(f"Error sending connection status for {ip}: {str(e)}", ip)
+
+# Bind events to Text widgets
 shelves_text.bind("<Button-1>", lambda event: on_text_click(event, get_ip_from_text(shelves_text, event)))
 shelves_text.bind("<Double-1>", lambda event: on_text_double_click(event, get_ip_from_text(shelves_text, event)))
 return_boxes_text.bind("<Button-1>", lambda event: on_text_click(event, get_ip_from_text(return_boxes_text, event)))

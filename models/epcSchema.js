@@ -12,8 +12,8 @@ const epcSchema = new mongoose.Schema({
   },
   industryIdentifier: { type: [String] },
   timestamp: { type: Date, default: Date.now },
-  readerIp: { type: String }, // Store the reader IP that last detected this EPC
-  logs: [{ message: String, timestamp: Date }], // Log history for this EPC
+  readerIp: { type: String },
+  logs: [{ message: String, timestamp: Date }],
 });
 
 const Epc = mongoose.model('EPC', epcSchema);
