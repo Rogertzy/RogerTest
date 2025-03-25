@@ -10,57 +10,59 @@
             margin: 0;
             padding: 20px;
             background-color: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
         h1 {
-            text-align: center;
             color: #333;
-        }
-        .bookshelves {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            justify-content: center;
             margin-bottom: 20px;
         }
+        .bookshelves-container {
+            width: 90%;
+            max-width: 1200px;
+        }
         .bookshelf {
-            width: 300px;
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            overflow: hidden;
+            background-color: #8B4513;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            margin-bottom: 30px;
             cursor: pointer;
             transition: transform 0.2s;
         }
         .bookshelf:hover {
-            transform: scale(1.05);
+            transform: scale(1.02);
         }
         .shelf-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 10px;
-            background-color: #007bff;
             color: white;
+            margin-bottom: 10px;
         }
         .shelf-header h2 {
             margin: 0;
-            font-size: 18px;
+            font-size: 20px;
         }
         .status {
-            padding: 5px 10px;
-            border-radius: 12px;
             font-size: 14px;
+            padding: 5px 10px;
+            border-radius: 3px;
         }
-        .status-active {
-            background-color: #28a745;
-        }
-        .status-inactive {
-            background-color: #dc3545;
-        }
+        .status-active { background-color: #28a745; }
+        .status-inactive { background-color: #6c757d; }
+        .status-error { background-color: #dc3545; }
         .shelf-placeholder {
-            padding: 20px;
+            height: 120px;
+            background-color: #A0522D;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
             text-align: center;
-            color: #666;
         }
         .book-display {
             display: none;
@@ -69,61 +71,105 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0,0,0,0.5);
-            justify-content: center;
-            align-items: center;
+            background-color: rgba(0,0,0,0.85);
             z-index: 1000;
+            align-items: center;
+            justify-content: center;
         }
         .book-container {
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            width: 80%;
-            max-width: 800px;
-            max-height: 80vh;
-            overflow-y: auto;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-        }
-        .side-book {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            padding: 10px;
-            border-bottom: 1px solid #ddd;
+            justify-content: center;
+            width: 90%;
+            max-width: 1200px;
         }
-        .side-book:last-child {
-            border-bottom: none;
-        }
-        .book-info {
-            flex-grow: 1;
-            margin-right: 10px;
-        }
-        .book-info h3 {
-            margin: 0;
-            font-size: 16px;
+        .book-large {
+            background-color: #FFD700;
             color: #333;
+            padding: 25px;
+            width: 450px;
+            border-radius: 10px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+            text-align: center;
         }
-        .book-info p {
-            margin: 5px 0;
+        .book-large .book-title {
+            font-weight: bold;
+            font-size: 26px;
+            margin-bottom: 15px;
+            line-height: 1.2;
+        }
+        .book-large .book-detail {
+            font-size: 16px;
+            margin: 8px 0;
+        }
+        .book-large .book-author { font-style: italic; }
+        .book-large .book-timestamp { font-size: 12px; color: #777; margin-top: 15px; }
+        .book-side {
+            background-color: #FFD700;
+            color: #333;
+            padding: 10px;
+            width: 160px;
+            border-radius: 5px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            text-align: center;
+            margin: 0 25px;
+            opacity: 0.85;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .book-side:hover {
+            opacity: 1;
+        }
+        .book-side .book-title {
+            font-weight: bold;
             font-size: 14px;
-            color: #666;
+            margin-bottom: 5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .book-side .book-detail {
+            font-size: 10px;
+            margin: 2px 0;
+        }
+        .nav-button {
+            background-color: #8B4513;
+            color: white;
+            border: none;
+            padding: 15px;
+            font-size: 20px;
+            border-radius: 50%;
+            cursor: pointer;
+            margin: 0 25px;
+            transition: background-color 0.2s;
+        }
+        .nav-button:hover:not(:disabled) {
+            background-color: #A0522D;
+        }
+        .nav-button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
         }
     </style>
 </head>
 <body>
     <h1>RFID Bookshelves</h1>
-    <div class="bookshelves" id="bookshelves"></div>
+    <div class="bookshelves-container" id="bookshelves"></div>
     <div class="book-display" id="bookDisplay">
         <div class="book-container" id="bookContainer"></div>
     </div>
 
     <script>
         let currentReaders = [];
+        let currentIndex = 0;
         let intervalId = null;
 
         async function fetchBookshelfData() {
             try {
-                const response = await fetch('/api/rfid-readers');
+                const response = await fetch('/api/rfid-readers', {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
                 if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
                 currentReaders = (await response.json()).filter(reader => reader.type === 'shelf');
                 updateBookshelves(currentReaders);
@@ -132,7 +178,7 @@
                 }
             } catch (error) {
                 console.error('Error fetching bookshelf data:', error.message);
-                document.getElementById('bookshelves').innerHTML = `<p>Failed to load bookshelves: ${error.message}</p>`;
+                document.getElementById('bookshelves').innerHTML = `<p>Error loading bookshelves: ${error.message}</p>`;
             }
         }
 
@@ -157,9 +203,10 @@
         function showBookDisplay() {
             const reader = currentReaders[0];
             if (!reader || reader.epcs.length === 0) {
-                alert('No books detected on this bookshelf.');
+                alert('No books detected on this shelf.');
                 return;
             }
+            currentIndex = 0;
             const bookDisplay = document.getElementById('bookDisplay');
             bookDisplay.style.display = 'flex';
             updateBookContainer(reader.epcs);
@@ -171,29 +218,75 @@
         function updateBookContainer(epcs) {
             const bookContainer = document.getElementById('bookContainer');
             bookContainer.innerHTML = '';
+
             if (epcs.length === 0) {
                 bookContainer.innerHTML = '<p>No books detected.</p>';
                 return;
             }
-            epcs.forEach(epcData => {
-                const bookElement = createSideBook(epcData);
-                bookContainer.appendChild(bookElement);
+
+            if (currentIndex >= epcs.length) currentIndex = epcs.length - 1;
+
+            const leftButton = document.createElement('button');
+            leftButton.className = 'nav-button';
+            leftButton.textContent = '<';
+            leftButton.disabled = currentIndex === 0;
+            leftButton.addEventListener('click', () => {
+                if (currentIndex > 0) {
+                    currentIndex--;
+                    updateBookContainer(epcs);
+                }
             });
+            bookContainer.appendChild(leftButton);
+
+            if (currentIndex > 0) {
+                const leftBook = createSideBook(epcs[currentIndex - 1]);
+                bookContainer.appendChild(leftBook);
+            }
+
+            const largeBook = document.createElement('div');
+            largeBook.className = 'book-large';
+            const centerEpc = epcs[currentIndex];
+            largeBook.innerHTML = `
+                <div class="book-title">${centerEpc.title || 'Unknown Title'}</div>
+                <div class="book-detail book-author">Author: ${centerEpc.author || 'Unknown Author'}</div>
+                <div class="book-detail">Status: ${centerEpc.status}</div>
+                <div class="book-detail">ISBN: ${centerEpc.industryIdentifier || 'N/A'}</div>
+                <div class="book-detail">EPC: ${centerEpc.epc}</div>
+                <div class="book-timestamp">Last Updated: ${centerEpc.timestamp ? new Date(centerEpc.timestamp).toLocaleString() : 'N/A'}</div>
+            `;
+            bookContainer.appendChild(largeBook);
+
+            if (currentIndex < epcs.length - 1) {
+                const rightBook = createSideBook(epcs[currentIndex + 1]);
+                bookContainer.appendChild(rightBook);
+            }
+
+            const rightButton = document.createElement('button');
+            rightButton.className = 'nav-button';
+            rightButton.textContent = '>';
+            rightButton.disabled = currentIndex === epcs.length - 1;
+            rightButton.addEventListener('click', () => {
+                if (currentIndex < epcs.length - 1) {
+                    currentIndex++;
+                    updateBookContainer(epcs);
+                }
+            });
+            bookContainer.appendChild(rightButton);
         }
 
         function createSideBook(epcData) {
-            const book = document.createElement('div');
-            book.className = 'side-book';
-            book.innerHTML = `
-                <div class="book-info">
-                    <h3>${epcData.title || 'Unknown Title'}</h3>
-                    <p>Author: ${epcData.author || 'Unknown Author'}</p>
-                    <p>EPC: ${epcData.epc}</p>
-                    <p>Status: ${epcData.status}</p>
-                    <p>ISBN: ${epcData.industryIdentifier || 'N/A'}</p>
-                </div>
+            const sideBook = document.createElement('div');
+            sideBook.className = 'book-side';
+            sideBook.innerHTML = `
+                <div class="book-title">${epcData.title || 'Unknown Title'}</div>
+                <div class="book-detail book-author">Author: ${epcData.author || 'Unknown Author'}</div>
+                <div class="book-detail">Status: ${epcData.status}</div>
             `;
-            return book;
+            sideBook.addEventListener('click', () => {
+                currentIndex = currentReaders[0].epcs.findIndex(e => e.epc === epcData.epc);
+                updateBookContainer(currentReaders[0].epcs);
+            });
+            return sideBook;
         }
 
         fetchBookshelfData();
