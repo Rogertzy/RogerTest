@@ -1,19 +1,20 @@
-# render.yaml for RFID Library Application on Render.com
+# render.yaml for RFID Library Application (Free Tier on Render.com)
 
 services:
   - type: web
     name: rfid-library
     runtime: node
-    repo: https://github.com/your-username/your-repo.git  # Replace with your GitHub repo URL
+    repo: https://github.com/Rogertzy/RogerTest.git # Replace with your GitHub repo URL
     branch: main  # Replace with your branch name if different
-    region: oregon  # Adjust to your preferred region (e.g., frankfurt)
-    plan: free  # Use 'starter' or higher for paid plans if needed
-    numInstances: 1  # Default scaling; adjust if needed
+    region: oregon  # Adjust to your preferred region (e.g., frankfurt, singapore)
+    plan: free  # Explicitly set to free tier
+    numInstances: 1  # Free tier supports 1 instance
     buildCommand: npm install
     startCommand: node server.js
     envVars:
       - key: NODE_ENV
         value: production
       - key: MONGO_URI
-        sync: false  # Set this in Render Dashboard (MongoDB Atlas URI)
+        sync: false  # Set in Render Dashboard (MongoDB Atlas URI)
     rootDir: .  # Assumes server.js, package.json, and public/ are at repo root
+    autoDeploy: true  # Auto-deploys on Git push (optional, can be disabled)
