@@ -7,15 +7,15 @@ app.use(express.static('public'));
 app.use(express.json());
 
 // MongoDB connection
-const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/rfid_library';
-mongoose.connect(mongoUri, { useNewUrlParser: true, useUnifiedTopology: true })
-    .then(() => console.log('Connected to MongoDB'))
+const mongoURI = "mongodb+srv://Admin:admin@library.8bgvj.mongodb.net/bookManagement?retryWrites=true&w=majority&appName=Library";
+mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
+    .then(() => console.log('MongoDB connected'))
     .catch(err => console.error('MongoDB connection error:', err));
 
 // Models
 const EPC = require('./models/epcSchema');
-const UserBorrow = require('./models/userBorrowSchema');
-const BookBuy = require('./models/bookBuySchema');
+const UserBorrow = require('./models/bookBorrowSchema');
+const BookBuy = require('./models/buyBookSchema');
 
 // Reader configuration by IP (match bridge.js)
 const readers = {
