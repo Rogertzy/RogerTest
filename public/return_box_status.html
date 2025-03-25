@@ -118,7 +118,7 @@
 
     <div class="modal" id="book-modal">
         <div class="modal-content">
-            <span class="close" onclick="closeModal()">&times;</span>
+            <span class="close" onclick="closeModal()">×</span>
             <table id="book-table">
                 <thead>
                     <tr>
@@ -139,7 +139,7 @@
 
         async function fetchBookshelfData() {
             try {
-                const response = await fetch('./api/rfid-readers');
+                const response = await fetch('https://your-app-name.onrender.com/api/rfid-readers');
                 if (!response.ok) {
                     throw new Error(`HTTP error! Status: ${response.status} - ${response.statusText}`);
                 }
@@ -147,7 +147,7 @@
                 const returnBoxData = readers.find(reader => reader.port === 'returnBox');
                 updateBookshelf(returnBoxData);
             } catch (error) {
-                console.error('Detailed error fetching RFID data:', error.message);
+                console.error('Detailed error fetching RFID data:', error);
                 document.getElementById('bookshelf').innerHTML = `<p>Error loading return boxes: ${error.message}</p>`;
             }
         }
@@ -197,7 +197,7 @@
                 return;
             }
             try {
-                const response = await fetch('./api/return-boxes', {
+                const response = await fetch('https://your-app-name.onrender.com/api/return-boxes', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name: `Return Box ${readerIp.split('.').pop()}`, readerIp }),
