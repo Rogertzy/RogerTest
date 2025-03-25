@@ -73,7 +73,37 @@ return_boxes_scroll.pack(side="right", fill="y")
 return_boxes_text = tk.Text(return_boxes_inner_frame, height=20, width=40, yscrollcommand=return_boxes_scroll.set, borderwidth=0)
 return_boxes_text.pack(fill="both", expand=True)
 return_boxes_scroll.config(command=return_boxes_text.yview)
+import time
 
+def get_item_type(ip):
+    if ip in [s["ip"] for s in config["shelves"]]:
+        return "shelf"
+    elif ip in [b["ip"] for b in config["return_boxes"]]:
+        return "return_box"
+    return None
+
+def check_stale_epcs():
+    now = datetime.now().timestamp()
+    for ip, epcs in detected_epcs.items():
+        to_remove = []
+        for epc, data in epcs.items():
+            if now - data["last_seen"] > 5:
+                to_remove.append(epc)
+                if data["sent"]:
+                    log_message(f"EPC '{epc}' no longer detected by {get_item_type(ip)} reader {ip}", ip)
+                    send_to_render(ip, epc, get_item_type(ip), detected=False)
+        for epc in to_remove:
+            del epcs[epc]
+        if not epcs:
+            update_status(ip, 'grey')
+
+def periodic_check_stale_epcs():
+    while True:
+        check_stale_epcs()
+        time.sleep(5)
+
+# Start the periodic check thread
+threading.Thread(target=periodic_check_stale_epcs, daemon=True).start()
 # Status widgets dictionary
 status_widgets = {}  # {ip: {'canvas': canvas, 'light': light_id, 'text_widget': text_widget, 'line': line_number}}
 
@@ -243,7 +273,7 @@ def remove_selected():
                 except Exception as e:
                     log_message(f"Error deleting return box {selected_ip} from server: {str(e)}")
                 return
-
+            
 def get_selected_ip():
     for ip, widgets in status_widgets.items():
         if widgets['text_widget'].tag_names(f"{widgets['line']}.0") and "selected" in widgets['text_widget'].tag_names(f"{widgets['line']}.0"):
@@ -356,9 +386,9 @@ def handle_client(client, ip):
 
     if ip not in detected_epcs:
         detected_epcs[ip] = {}
-    update_status(ip, 'green')
-    send_connection_status(ip, True)
-    log_message(f"Client connected: {ip}", ip)
+        update_status(ip, 'green')
+        send_connection_status(ip, True)
+        log_message(f"Client connected: {ip}", ip)
 
     while True:
         try:
