@@ -139,7 +139,7 @@
 
         async function fetchBookshelfData() {
             try {
-                const response = await fetch('http://localhost:10000/api/rfid-readers');
+                const response = await fetch('./api/rfid-readers');
                 if (!response.ok) {
                     throw new Error(`HTTP error! Status: ${response.status} - ${response.statusText}`);
                 }
@@ -197,7 +197,7 @@
                 return;
             }
             try {
-                const response = await fetch('http://localhost:10000/api/return-boxes', {
+                const response = await fetch('./api/return-boxes', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name: `Return Box ${readerIp.split('.').pop()}`, readerIp }),
