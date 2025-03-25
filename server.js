@@ -19,7 +19,7 @@ const BookBuy = require('./models/buyBookSchema');
 
 // Reader configuration by IP (match bridge.js)
 const readers = {
-    shelfReaders: ['192.168.1.101', '192.168.1.102', '192.168.1.103'],
+    shelfReaders: ['192.168.3.101', '192.168.1.102', '192.168.1.103'],
     returnBoxReaders: ['192.168.1.201', '192.168.1.202', '192.168.1.203']
 };
 

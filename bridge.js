@@ -3,7 +3,7 @@ const axios = require('axios');
 
 // Reader configuration by IP (update with your RFID machine IPs)
 const readers = {
-    shelfReaders: ['192.168.1.101', '192.168.1.102', '192.168.1.103'], // Bookshelf IPs
+    shelfReaders: ['192.168.3.101', '192.168.1.102', '192.168.1.103'], // Bookshelf IPs
     returnBoxReaders: ['192.168.1.201', '192.168.1.202', '192.168.1.203'] // Return box IPs
 };
 
@@ -11,7 +11,7 @@ const readers = {
 const PORT = 5000; // Single port for all RFID machines to connect to locally
 const HOST = '0.0.0.0'; // Listen on all interfaces
 
-// Extract EPC from RFID data (matches your original logic)
+// Extract EPC from RFID data
 function extractMiddleSegment(hexString) {
     if (typeof hexString !== 'string' || hexString.length < 20) {
         return null;
