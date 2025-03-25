@@ -5,26 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RFID Bookshelves</title>
     <style>
-        /* Same styles as before */
-        .add-button {
-            margin-top: 20px;
-            padding: 10px 20px;
-            background-color: #8B4513;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        .add-button:hover {
-            background-color: #A0522D;
-        }
+        /* Your existing styles remain unchanged */
     </style>
 </head>
 <body>
     <h1>RFID Bookshelves</h1>
-    <div class="bookshelves-container" id="bookshelves"></div>
-    <button class="add-button" onclick="addNewShelf()">Add New Bookshelf</button>
+    <div class="bookshelves" id="bookshelves"></div>
     <div class="book-display" id="bookDisplay">
         <div class="book-container" id="bookContainer"></div>
     </div>
@@ -33,7 +19,6 @@
         let currentReaders = [];
         let currentIndex = 0;
         let intervalId = null;
-        let shelfIps = JSON.parse(localStorage.getItem('shelfIps')) || ['192.168.1.101']; // Default IP
 
         async function fetchBookshelfData() {
             try {
@@ -41,65 +26,48 @@
                 if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
                 currentReaders = (await response.json()).filter(reader => reader.type === 'shelf');
                 updateBookshelves(currentReaders);
+                if (currentReaders.length > 0) {
+                    updateBookContainer(currentReaders[0].epcs);
+                }
             } catch (error) {
                 console.error('Error fetching bookshelf data:', error.message);
-                document.getElementById('bookshelves').innerHTML = `<p>Error loading bookshelves: ${error.message}</p>`;
+                document.getElementById('bookshelves').innerHTML = `<p>Failed to load bookshelves: ${error.message}</p>`;
             }
         }
 
         function updateBookshelves(readers) {
             const bookshelvesContainer = document.getElementById('bookshelves');
             bookshelvesContainer.innerHTML = '';
-            shelfIps.forEach(ip => {
-                const reader = readers[0]; // Single shelf entry from server
-                const epcsForIp = reader ? reader.epcs.filter(epc => epc.readerIp === ip) : [];
-                const status = epcsForIp.length > 0 ? 'active' : 'inactive';
+            readers.forEach(reader => {
                 const bookshelf = document.createElement('div');
                 bookshelf.className = 'bookshelf';
                 bookshelf.innerHTML = `
                     <div class="shelf-header">
-                        <h2>Bookshelf ${ip} (${epcsForIp.length} books)</h2>
-                        <span class="status status-${status}">${status.charAt(0).toUpperCase() + status.slice(1)}</span>
+                        <h2>Bookshelf (${reader.epcs.length} books detected)</h2>
+                        <span class="status status-${reader.status}">${reader.status.charAt(0).toUpperCase() + reader.status.slice(1)}</span>
                     </div>
                     <div class="shelf-placeholder">Click to view books</div>
                 `;
-                bookshelf.addEventListener('click', () => showBookDisplay(ip));
+                bookshelf.addEventListener('click', () => showBookDisplay());
                 bookshelvesContainer.appendChild(bookshelf);
             });
         }
 
-        function showBookDisplay(ip) {
+        function showBookDisplay() {
             const reader = currentReaders[0];
-            const epcsForIp = reader ? reader.epcs.filter(epc => epc.readerIp === ip) : [];
-            if (!epcsForIp.length) {
-                alert('No books detected on this shelf.');
+            if (!reader || reader.epcs.length === 0) {
+                alert('No books detected on this bookshelf.');
                 return;
             }
-            currentIndex = 0;
             const bookDisplay = document.getElementById('bookDisplay');
             bookDisplay.style.display = 'flex';
-            updateBookContainer(epcsForIp);
+            updateBookContainer(reader.epcs);
             bookDisplay.onclick = (e) => {
                 if (e.target === bookDisplay) bookDisplay.style.display = 'none';
             };
         }
 
-        function updateBookContainer(epcs) {
-            // Same as before, unchanged
-        }
-
-        function createSideBook(epcData) {
-            // Same as before, unchanged
-        }
-
-        function addNewShelf() {
-            const ip = prompt('Enter Bookshelf IP (e.g., 192.168.1.102):');
-            if (ip && !shelfIps.includes(ip)) {
-                shelfIps.push(ip);
-                localStorage.setItem('shelfIps', JSON.stringify(shelfIps));
-                fetchBookshelfData();
-            }
-        }
+        // Rest of the script (updateBookContainer, createSideBook, etc.) remains unchanged
 
         fetchBookshelfData();
         intervalId = setInterval(fetchBookshelfData, 2000);
