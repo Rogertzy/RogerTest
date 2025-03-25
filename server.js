@@ -8,11 +8,9 @@ app.use(express.static('public')); // Serve rfid_status.html and return_box_stat
 app.use(express.json());
 
 // MongoDB Connection
-const mongoUri = process.env.MONGO_URI || 'mongodb+srv://Admin:admin@library.8bgvj.mongodb.net/bookManagement?retryWrites=true&w=majority&appName=Library';
+const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/rfid_library';
 mongoose
   .connect(mongoUri, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
     serverSelectionTimeoutMS: 20000,
     connectTimeoutMS: 30000,
   })
@@ -136,7 +134,7 @@ app.post('/api/rfid-update', ensureDbConnected, async (req, res) => {
     res.status(200).json({ message: 'EPC processed' });
   } catch (error) {
     console.error('Error processing EPC:', error.message);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
@@ -191,6 +189,10 @@ app.post('/api/shelves', ensureDbConnected, async (req, res) => {
     return res.status(400).json({ error: 'Name and readerIp are required' });
   }
   try {
+    const existingShelf = await Shelf.findOne({ readerIp });
+    if (existingShelf) {
+      return res.status(400).json({ error: 'Shelf with this readerIp already exists' });
+    }
     const shelf = new Shelf({ name, readerIp });
     await shelf.save();
     res.status(201).json(shelf);
@@ -239,6 +241,10 @@ app.post('/api/return-boxes', ensureDbConnected, async (req, res) => {
     return res.status(400).json({ error: 'Name and readerIp are required' });
   }
   try {
+    const existingReturnBox = await ReturnBox.findOne({ readerIp });
+    if (existingReturnBox) {
+      return res.status(400).json({ error: 'Return box with this readerIp already exists' });
+    }
     const returnBox = new ReturnBox({ name, readerIp });
     await returnBox.save();
     res.status(201).json(returnBox);
@@ -286,6 +292,10 @@ app.post('/api/epc', ensureDbConnected, async (req, res) => {
   if (!epc || !status) return res.status(400).json({ error: 'EPC and status are required' });
 
   try {
+    const existingEpc = await Epc.findOne({ epc });
+    if (existingEpc) {
+      return res.status(400).json({ error: 'EPC already exists' });
+    }
     const newEpc = new Epc({
       epc,
       title: title || 'Unknown Title',
@@ -293,7 +303,12 @@ app.post('/api/epc', ensureDbConnected, async (req, res) => {
       status,
       industryIdentifier: industryIdentifier || ['N/A'],
       timestamp: Date.now(),
-      logs: [{ message: `${new Date().toLocaleTimeString()} - EPC '${epc}' manually added with status '${status}'`, timestamp: Date.now() }],
+      logs: [
+        {
+          message: `${new Date().toLocaleTimeString()} - EPC '${epc}' manually added with status '${status}'`,
+          timestamp: Date.now(),
+        },
+      ],
     });
     await newEpc.save();
     console.log(`Manually added EPC '${epc}' with status '${status}'`);
