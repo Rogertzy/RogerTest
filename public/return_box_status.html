@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RFID Return Boxes</title>
+    <style>
+        /* Your existing styles remain unchanged */
+    </style>
+</head>
+<body>
+    <h1>RFID Return Boxes</h1>
+    <div class="return-boxes-container" id="returnBoxes"></div>
+    <div class="book-display" id="bookDisplay">
+        <div class="book-form" id="bookForm"></div>
+    </div>
+
+    <script>
+        let currentReaders = [];
+        let intervalId = null;
+
+        async function fetchReturnBoxData() {
+            try {
+                const response = await fetch('/api/rfid-readers');
+                if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+                currentReaders = (await response.json()).filter(reader => reader.type === 'return box');
+                updateReturnBoxes(currentReaders);
+                if (currentReaders.length > 0) {
+                    updateBookForm(currentReaders[0].epcs);
+                }
+            } catch (error) {
+                console.error('Error fetching return box data:', error.message);
+                document.getElementById('returnBoxes').innerHTML = `<p>Failed to load return boxes: ${error.message}</p>`;
+            }
+        }
+
+        function updateReturnBoxes(readers) {
+            const returnBoxesContainer = document.getElementById('returnBoxes');
+            returnBoxesContainer.innerHTML = '';
+            readers.forEach(reader => {
+                const returnBox = document.createElement('div');
+                returnBox.className = 'return-box';
+                returnBox.innerHTML = `
+                    <div class="box-header">
+                        <h2>Return Box (${reader.epcs.length} books detected)</h2>
+                        <span class="status status-${reader.status}">${reader.status.charAt(0).toUpperCase() + reader.status.slice(1)}</span>
+                    </div>
+                    <div class="box-placeholder">Click to view books</div>
+                `;
+                returnBox.addEventListener('click', () => showBookForm());
+                returnBoxesContainer.appendChild(returnBox);
+            });
+        }
+
+        function showBookForm() {
+            const reader = currentReaders[0];
+            if (!reader || reader.epcs.length === 0) {
+                alert('No books detected in this return box.');
+                return;
+            }
+            const bookDisplay = document.getElementById('bookDisplay');
+            bookDisplay.style.display = 'flex';
+            updateBookForm(reader.epcs);
+            bookDisplay.onclick = (e) => {
+                if (e.target === bookDisplay) bookDisplay.style.display = 'none';
+            };
+        }
+
+        // Rest of the script (updateBookForm) remains unchanged
+
+        fetchReturnBoxData();
+        intervalId = setInterval(fetchReturnBoxData, 2000);
+        window.addEventListener('unload', () => {
+            if (intervalId) clearInterval(intervalId);
+        });
+    </script>
+</body>
+</html>
