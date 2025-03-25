@@ -138,11 +138,11 @@
     <div class="modal" id="book-modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal()">×</span>
-            <button class="nav-button" id="prev-button" onclick="prevBook()"><</button>
+            <button class="nav-button" id="prev-button" onclick="prevBook()">&lt;</button>
             <div class="book-small" id="prev-book"></div>
             <div class="book-large" id="current-book"></div>
             <div class="book-small" id="next-book"></div>
-            <button class="nav-button" id="next-button" onclick="nextBook()">></button>
+            <button class="nav-button" id="next-button" onclick="nextBook()">&gt;</button>
         </div>
     </div>
 
@@ -155,7 +155,7 @@
             try {
                 const response = await fetch('https://rfid-library.onrender.com/api/rfid-readers');
                 if (!response.ok) {
-                    throw new Error(`HTTP error! Status: ${response.status} - ${response.statusText}`);
+                    throw new Error(`HTTP error! Status: ${response.status}`);
                 }
                 const data = await response.json();
                 updateBookshelf(data.shelves);
@@ -163,10 +163,14 @@
                     const shelf = data.shelves.find(s => s.readerIp === selectedReaderIp);
                     currentBooks = shelf ? shelf.epcs : [];
                     if (currentBookIndex >= currentBooks.length) {
-                        currentBookIndex = currentBooks.length - 1;
+                        currentBookIndex = Math.max(0, currentBooks.length - 1);
                     }
                     if (currentBooks.length === 0) {
-                        closeModal();
+                        document.getElementById('current-book').innerHTML = 'No books on this shelf.';
+                        document.getElementById('prev-book').innerHTML = '';
+                        document.getElementById('next-book').innerHTML = '';
+                        document.getElementById('prev-button').disabled = true;
+                        document.getElementById('next-button').disabled = true;
                     } else {
                         updateModal();
                     }
@@ -182,11 +186,11 @@
             const existingShelves = new Set(
                 Array.from(bookshelf.children).map(child => child.id.replace('shelf-', ''))
             );
-            const currentReaders = new Set(shelves.map(shelf => shelf.readerIp));
 
+            // Remove deleted shelves
             Array.from(bookshelf.children).forEach(child => {
                 const readerIp = child.id.replace('shelf-', '');
-                if (!currentReaders.has(readerIp)) {
+                if (!shelves.some(s => s.readerIp === readerIp)) {
                     bookshelf.removeChild(child);
                 }
             });
@@ -223,7 +227,7 @@
                 const response = await fetch('https://rfid-library.onrender.com/api/shelves', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: `Bookshelf ${readerIp.split('.').pop()}`, readerIp }),
+                    body: JSON.stringify({ name: `Bookshelf ${readerIp.split('.').pop()}`, readerIp })
                 });
                 if (!response.ok) {
                     throw new Error(`Failed to add shelf: ${response.statusText}`);
@@ -238,11 +242,19 @@
 
         function showBooks(readerIp, books) {
             selectedReaderIp = readerIp;
-            currentBooks = books;
+            currentBooks = books || [];
             currentBookIndex = 0;
             const modal = document.getElementById('book-modal');
             modal.style.display = 'flex';
-            updateModal();
+            if (currentBooks.length === 0) {
+                document.getElementById('current-book').innerHTML = 'No books on this shelf.';
+                document.getElementById('prev-book').innerHTML = '';
+                document.getElementById('next-book').innerHTML = '';
+                document.getElementById('prev-button').disabled = true;
+                document.getElementById('next-button').disabled = true;
+            } else {
+                updateModal();
+            }
         }
 
         function updateModal() {
@@ -258,10 +270,9 @@
 
             if (currentBook) {
                 currentBookDiv.innerHTML = `
-                    <strong>${currentBook.title}</strong><br>
-                    Author: ${currentBook.author.join(', ')}<br>
-                    Status: ${currentBook.status}<br>
-                    ISBN: ${currentBook.industryIdentifier ? currentBook.industryIdentifier.join(', ') : 'N/A'}<br>
+                    <strong>${currentBook.title || 'Unknown Title'}</strong><br>
+                    Author: ${currentBook.author ? currentBook.author.join(', ') : 'Unknown Author'}<br>
+                    Status: ${currentBook.status || 'Unknown'}<br>
                     EPC: ${currentBook.epc}
                 `;
             } else {
@@ -269,12 +280,12 @@
             }
 
             prevBookDiv.innerHTML = prevBook ? `
-                <strong>${prevBook.title}</strong><br>
-                ${prevBook.author.join(', ')}
+                <strong>${prevBook.title || 'Unknown Title'}</strong><br>
+                ${prevBook.author ? prevBook.author.join(', ') : 'Unknown Author'}
             ` : '';
             nextBookDiv.innerHTML = nextBook ? `
-                <strong>${nextBook.title}</strong><br>
-                ${nextBook.author.join(', ')}
+                <strong>${nextBook.title || 'Unknown Title'}</strong><br>
+                ${nextBook.author ? nextBook.author.join(', ') : 'Unknown Author'}
             ` : '';
 
             prevButton.disabled = !prevBook;
