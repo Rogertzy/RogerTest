@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox, simpledialog
+from tkinter import messagebox, simpledialog, ttk
 import json
 import socket
 import threading
@@ -18,60 +18,312 @@ try:
 except FileNotFoundError:
     config = {"shelves": [], "return_boxes": []}
 
+# Detected EPCs state
+detected_epcs = {}  # {ip: {epc: {last_seen: timestamp, sent: bool, log: []}, status: str}}
+
 # GUI Setup
 root = tk.Tk()
 root.title("RFID Bridge")
-root.geometry("600x400")
-
-# Detected EPCs state
-detected_epcs = {}  # {ip: {epc: {last_seen: timestamp, sent: bool}}}
+root.geometry("700x600")
 
 # Log Display
 log_frame = tk.Frame(root)
-log_frame.pack(fill="x", padx=10, pady=5)
-log_label = tk.Label(log_frame, text="EPC Detection Log", font=("Arial", 12, "bold"))
-log_label.pack()
-log_text = tk.Text(log_frame, height=10, width=70, state="disabled")
-log_text.pack(fill="x")
+log_frame.pack(fill="both", expand=True, padx=10, pady=5)
+tk.Label(log_frame, text="EPC Detection Log", font=("Arial", 12, "bold")).pack()
+log_inner_frame = tk.Frame(log_frame)
+log_inner_frame.pack(fill="both", expand=True)
+log_scroll = tk.Scrollbar(log_inner_frame, orient="vertical")
+log_scroll.pack(side="right", fill="y")
+log_text = tk.Text(log_inner_frame, height=5, width=80, state="disabled", yscrollcommand=log_scroll.set)
+log_text.pack(fill="both", expand=True)
+log_scroll.config(command=log_text.yview)
 
-# Boxes Display
-boxes_frame = tk.Frame(root)
-boxes_frame.pack(fill="x", padx=10, pady=5)
-boxes_label = tk.Label(boxes_frame, text="Configured Boxes", font=("Arial", 12, "bold"))
-boxes_label.pack()
-boxes_list = tk.Listbox(boxes_frame, height=5, width=70)
-boxes_list.pack(fill="x")
-
-# Buttons
+# Buttons (all in one row, centered)
 button_frame = tk.Frame(root)
-button_frame.pack(pady=10)
+button_frame.pack(pady=5)
 tk.Button(button_frame, text="Add Bookshelf", command=lambda: add_box("shelf")).pack(side="left", padx=5)
 tk.Button(button_frame, text="Add Return Box", command=lambda: add_box("return_box")).pack(side="left", padx=5)
+tk.Button(button_frame, text="Edit", command=lambda: edit_selected()).pack(side="left", padx=5)
+tk.Button(button_frame, text="Remove", command=lambda: remove_selected()).pack(side="left", padx=5)
 
-def log_message(message):
+# Bookshelves and Return Boxes Display (side by side)
+lists_frame = tk.Frame(root)
+lists_frame.pack(fill="x", padx=10, pady=5)
+
+# Bookshelves
+shelves_frame = tk.Frame(lists_frame)
+shelves_frame.pack(side="left", fill="both", expand=True, padx=(0, 5))
+tk.Label(shelves_frame, text="Existed Bookshelves", font=("Arial", 12, "bold")).pack()
+shelves_inner_frame = tk.Frame(shelves_frame, borderwidth=1, relief="sunken")
+shelves_inner_frame.pack(fill="both", expand=True)
+shelves_scroll = tk.Scrollbar(shelves_inner_frame, orient="vertical")
+shelves_scroll.pack(side="right", fill="y")
+shelves_text = tk.Text(shelves_inner_frame, height=20, width=40, yscrollcommand=shelves_scroll.set, borderwidth=0)  # Width changed back to 40
+shelves_text.pack(fill="both", expand=True)
+shelves_scroll.config(command=shelves_text.yview)
+
+# Return Boxes
+return_boxes_frame = tk.Frame(lists_frame)
+return_boxes_frame.pack(side="right", fill="both", expand=True, padx=(5, 0))
+tk.Label(return_boxes_frame, text="Existed Return Boxes", font=("Arial", 12, "bold")).pack()
+return_boxes_inner_frame = tk.Frame(return_boxes_frame, borderwidth=1, relief="sunken")
+return_boxes_inner_frame.pack(fill="both", expand=True)
+return_boxes_scroll = tk.Scrollbar(return_boxes_inner_frame, orient="vertical")
+return_boxes_scroll.pack(side="right", fill="y")
+return_boxes_text = tk.Text(return_boxes_inner_frame, height=20, width=40, yscrollcommand=return_boxes_scroll.set, borderwidth=0)  # Width changed to 40
+return_boxes_text.pack(fill="both", expand=True)
+return_boxes_scroll.config(command=return_boxes_text.yview)
+
+# Status lights and labels dictionary
+status_widgets = {}  # {ip: {'canvas': canvas, 'light': light_id, 'text_widget': text_widget, 'line': line_number}}
+
+def log_message(message, ip=None):
     log_text.config(state="normal")
-    log_text.delete("1.0", tk.END)  # Clear old logs
     log_text.insert(tk.END, f"{datetime.now().strftime('%H:%M:%S')} - {message}\n")
     log_text.config(state="disabled")
+    if ip and ip in detected_epcs:
+        detected_epcs[ip].setdefault('log', []).append(f"{datetime.now().strftime('%H:%M:%S')} - {message}")
 
-def update_boxes_list():
-    boxes_list.delete(0, tk.END)
+def get_next_default_name(box_type):
+    base_name = "Bookshelf" if box_type == "shelf" else "Return Box"
+    items = config["shelves"] if box_type == "shelf" else config["return_boxes"]
+    count = 1
+    while True:
+        name = f"{base_name} {count}"
+        if not any(item["name"] == name for item in items):
+            return name
+        count += 1
+
+def get_item_name(ip):
     for shelf in config["shelves"]:
-        boxes_list.insert(tk.END, f"Shelf: {shelf['name']} ({shelf['ip']})")
+        if shelf["ip"] == ip:
+            return shelf["name"]
     for box in config["return_boxes"]:
-        boxes_list.insert(tk.END, f"Return Box: {box['name']} ({box['ip']})")
+        if box["ip"] == ip:
+            return box["name"]
+    return "Unknown"
+
+def update_lists():
+    # Clear existing content
+    shelves_text.config(state="normal")
+    shelves_text.delete("1.0", tk.END)
+    return_boxes_text.config(state="normal")
+    return_boxes_text.delete("1.0", tk.END)
+    status_widgets.clear()
+
+    # Update Bookshelves
+    for i, shelf in enumerate(config["shelves"]):
+        ip = shelf["ip"]
+        status = detected_epcs.get(ip, {}).get('status', 'grey')
+        line = f"{i+1}.0"
+        shelves_text.insert(tk.END, "  ")
+        canvas = tk.Canvas(shelves_text, width=10, height=10)
+        light = canvas.create_oval(2, 2, 8, 8, fill=status)
+        shelves_text.window_create(tk.END, window=canvas)
+        shelves_text.insert(tk.END, f" {shelf['name']} ({ip})\n")
+        status_widgets[ip] = {'canvas': canvas, 'light': light, 'text_widget': shelves_text, 'line': i+1}
+
+    # Update Return Boxes
+    for i, box in enumerate(config["return_boxes"]):
+        ip = box["ip"]
+        status = detected_epcs.get(ip, {}).get('status', 'grey')
+        line = f"{i+1}.0"
+        return_boxes_text.insert(tk.END, "  ")
+        canvas = tk.Canvas(return_boxes_text, width=10, height=10)
+        light = canvas.create_oval(2, 2, 8, 8, fill=status)
+        return_boxes_text.window_create(tk.END, window=canvas)
+        return_boxes_text.insert(tk.END, f" {box['name']} ({ip})\n")
+        status_widgets[ip] = {'canvas': canvas, 'light': light, 'text_widget': return_boxes_text, 'line': i+1}
+
+    shelves_text.config(state="disabled")
+    return_boxes_text.config(state="disabled")
+
+def update_status(ip, status):
+    if ip in detected_epcs:
+        detected_epcs[ip]['status'] = status
+    if ip in status_widgets:
+        canvas = status_widgets[ip]['canvas']
+        light = status_widgets[ip]['light']
+        canvas.itemconfig(light, fill=status)
 
 def save_config():
     with open(CONFIG_FILE, 'w') as f:
         json.dump(config, f, indent=4)
 
 def add_box(box_type):
-    name = simpledialog.askstring("Input", f"Enter {box_type.replace('_', ' ')} name:")
-    ip = simpledialog.askstring("Input", f"Enter {box_type.replace('_', ' ')} IP:")
-    if name and ip:
-        config[f"{box_type}es"].append({"name": name, "ip": ip})
-        save_config()
-        update_boxes_list()
+    dialog = tk.Toplevel(root)
+    dialog.title(f"Add {box_type.replace('_', ' ')}")
+    dialog.geometry("350x200")
+    dialog.transient(root)
+    dialog.grab_set()
+    # Center dialog within root window
+    dialog.update_idletasks()
+    x = root.winfo_x() + (root.winfo_width() - dialog.winfo_width()) // 2
+    y = root.winfo_y() + (root.winfo_height() - dialog.winfo_height()) // 2
+    dialog.geometry(f"+{x}+{y}")
+
+    tk.Label(dialog, text="Name:", font=("Arial", 10)).pack(pady=10)
+    name_entry = tk.Entry(dialog, width=30)
+    name_entry.insert(0, get_next_default_name(box_type))  # Default name
+    name_entry.pack(pady=5)
+    tk.Label(dialog, text="IP:", font=("Arial", 10)).pack(pady=10)
+    ip_entry = tk.Entry(dialog, width=30)
+    ip_entry.insert(0, "192.168.1.1")  # Default IP
+    ip_entry.pack(pady=5)
+
+    def submit():
+        name = name_entry.get().strip()
+        ip = ip_entry.get().strip()
+        if name and ip:
+            key = "shelves" if box_type == "shelf" else "return_boxes"
+            config[key].append({"name": name, "ip": ip})
+            save_config()
+            update_lists()
+            dialog.destroy()
+        else:
+            messagebox.showwarning("Input Error", "Both Name and IP are required.")
+
+    tk.Button(dialog, text="Add", command=submit).pack(pady=20)
+
+def edit_selected():
+    selected_ip = get_selected_ip()
+    if selected_ip:
+        for i, shelf in enumerate(config["shelves"]):
+            if shelf["ip"] == selected_ip:
+                edit_item("shelf", i, shelf)
+                return
+        for i, box in enumerate(config["return_boxes"]):
+            if box["ip"] == selected_ip:
+                edit_item("return_box", i, box)
+                return
+
+def edit_item(box_type, idx, item):
+    dialog = tk.Toplevel(root)
+    dialog.title(f"Edit {box_type.replace('_', ' ')}")
+    dialog.geometry("350x200")
+    dialog.transient(root)
+    dialog.grab_set()
+    # Center dialog
+    dialog.update_idletasks()
+    x = root.winfo_x() + (root.winfo_width() - dialog.winfo_width()) // 2
+    y = root.winfo_y() + (root.winfo_height() - dialog.winfo_height()) // 2
+    dialog.geometry(f"+{x}+{y}")
+
+    tk.Label(dialog, text="Name:", font=("Arial", 10)).pack(pady=10)
+    name_entry = tk.Entry(dialog, width=30)
+    name_entry.insert(0, item["name"])
+    name_entry.pack(pady=5)
+    tk.Label(dialog, text="IP:", font=("Arial", 10)).pack(pady=10)
+    ip_entry = tk.Entry(dialog, width=30)
+    ip_entry.insert(0, item["ip"])
+    ip_entry.pack(pady=5)
+
+    def submit():
+        name = name_entry.get().strip()
+        ip = ip_entry.get().strip()
+        if name and ip:
+            key = "shelves" if box_type == "shelf" else "return_boxes"
+            config[key][idx] = {"name": name, "ip": ip}
+            save_config()
+            update_lists()
+            dialog.destroy()
+        else:
+            messagebox.showwarning("Input Error", "Both Name and IP are required.")
+
+    tk.Button(dialog, text="Save", command=submit).pack(pady=20)
+
+def remove_selected():
+    selected_ip = get_selected_ip()
+    if selected_ip:
+        for i, shelf in enumerate(config["shelves"]):
+            if shelf["ip"] == selected_ip:
+                config["shelves"].pop(i)
+                save_config()
+                update_lists()
+                return
+        for i, box in enumerate(config["return_boxes"]):
+            if box["ip"] == selected_ip:
+                config["return_boxes"].pop(i)
+                save_config()
+                update_lists()
+                return
+
+def get_selected_ip():
+    for ip, widgets in status_widgets.items():
+        if widgets['text_widget'].tag_names(f"{widgets['line']}.0") and "selected" in widgets['text_widget'].tag_names(f"{widgets['line']}.0"):
+            return ip
+    return None
+
+def show_item_log(ip):
+    # Highlight selected item
+    for widget_ip, widgets in status_widgets.items():
+        text_widget = widgets['text_widget']
+        line = widgets['line']
+        text_widget.tag_remove("selected", f"{line}.0", f"{line}.end")
+        text_widget.tag_remove("highlight", f"{line}.0", f"{line}.end")
+        if widget_ip == ip:
+            text_widget.tag_add("selected", f"{line}.0", f"{line}.end")
+            text_widget.tag_add("highlight", f"{line}.0", f"{line}.end")
+            text_widget.tag_configure("selected", foreground="blue")
+            text_widget.tag_configure("highlight", background="lightblue")
+
+    log_text.config(state="normal")
+    log_text.delete("1.0", tk.END)
+    if ip in detected_epcs and 'log' in detected_epcs[ip]:
+        for entry in detected_epcs[ip]['log']:
+            log_text.insert(tk.END, f"{entry}\n")
+    else:
+        log_text.insert(tk.END, "No EPC detection logs for this device.\n")
+    log_text.config(state="disabled")
+
+def show_item_log_window(ip):
+    # Get the item name for the IP
+    item_name = get_item_name(ip)
+    # Create a new window for the log
+    log_window = tk.Toplevel(root)
+    log_window.title(f"{item_name}:{ip}")  # Changed title to "Item Name:IP"
+    log_window.geometry("400x300")
+    log_window.transient(root)
+    log_window.grab_set()
+    # Center window
+    log_window.update_idletasks()
+    x = root.winfo_x() + (root.winfo_width() - log_window.winfo_width()) // 2
+    y = root.winfo_y() + (root.winfo_height() - log_window.winfo_height()) // 2
+    log_window.geometry(f"+{x}+{y}")
+
+    log_frame = tk.Frame(log_window)
+    log_frame.pack(fill="both", expand=True, padx=5, pady=5)
+    log_scroll = tk.Scrollbar(log_frame, orient="vertical")
+    log_scroll.pack(side="right", fill="y")
+    log_display = tk.Text(log_frame, height=15, width=50, state="disabled", yscrollcommand=log_scroll.set)
+    log_display.pack(fill="both", expand=True)
+    log_scroll.config(command=log_display.yview)
+
+    # Populate the log
+    log_display.config(state="normal")
+    if ip in detected_epcs and 'log' in detected_epcs[ip]:
+        for entry in detected_epcs[ip]['log']:
+            log_display.insert(tk.END, f"{entry}\n")
+    else:
+        log_display.insert(tk.END, "No EPC detection logs for this device.\n")
+    log_display.config(state="disabled")
+
+def on_text_click(event, ip):
+    if ip:
+        show_item_log(ip)
+
+def on_text_double_click(event, ip):
+    if ip:
+        show_item_log_window(ip)
+
+def get_ip_from_text(text_widget, event):
+    # Get the line number where the click occurred
+    index = text_widget.index(f"@{event.x},{event.y}")
+    line = int(index.split('.')[0])
+    for ip, widgets in status_widgets.items():
+        if widgets['text_widget'] == text_widget and widgets['line'] == line:
+            return ip
+    return None
 
 def extract_epc(data):
     hex_data = data.hex().upper()
@@ -79,14 +331,21 @@ def extract_epc(data):
 
 def tcp_server():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind(('0.0.0.0', PORT))
-    server.listen(5)
-    log_message(f"TCP server listening on port {PORT}")
+    try:
+        server.bind(('0.0.0.0', PORT))
+        server.listen(5)
+        log_message(f"TCP server listening on port {PORT}")
+    except Exception as e:
+        log_message(f"Failed to start TCP server: {str(e)}")
+        return
 
     while True:
-        client, addr = server.accept()
-        ip = addr[0]
-        threading.Thread(target=handle_client, args=(client, ip), daemon=True).start()
+        try:
+            client, addr = server.accept()
+            ip = addr[0]
+            threading.Thread(target=handle_client, args=(client, ip), daemon=True).start()
+        except:
+            break
 
 def handle_client(client, ip):
     shelf_ips = [s["ip"] for s in config["shelves"]]
@@ -98,6 +357,7 @@ def handle_client(client, ip):
 
     if ip not in detected_epcs:
         detected_epcs[ip] = {}
+    update_status(ip, 'green')  # Connected
 
     while True:
         try:
@@ -109,12 +369,13 @@ def handle_client(client, ip):
                 now = datetime.now().timestamp()
                 if epc not in detected_epcs[ip]:
                     detected_epcs[ip][epc] = {"last_seen": now, "sent": False}
-                    log_message(f"EPC '{epc}' detected by {box_type} reader {ip}")
+                    log_message(f"EPC '{epc}' detected by {box_type} reader {ip}", ip)
                     send_to_render(ip, epc, box_type)
                     detected_epcs[ip][epc]["sent"] = True
                 else:
                     detected_epcs[ip][epc]["last_seen"] = now
         except:
+            update_status(ip, 'red')  # Error or disconnect
             break
 
     # Check for non-detected EPCs
@@ -122,9 +383,11 @@ def handle_client(client, ip):
     for epc in list(detected_epcs[ip].keys()):
         if now - detected_epcs[ip][epc]["last_seen"] > 5:  # 5-second timeout
             if detected_epcs[ip][epc]["sent"]:
-                log_message(f"EPC '{epc}' no longer detected by {box_type} reader {ip}")
+                log_message(f"EPC '{epc}' no longer detected by {box_type} reader {ip}", ip)
                 send_to_render(ip, epc, box_type, detected=False)
             del detected_epcs[ip][epc]
+    if not detected_epcs[ip]:
+        update_status(ip, 'grey')  # No active EPCs
 
     client.close()
 
@@ -136,13 +399,19 @@ def send_to_render(ip, epc, box_type, detected=True):
             "type": box_type,
             "detected": detected
         }, headers={"Content-Type": "application/json"})
-        log_message(f"EPC '{epc}' {'forwarded to' if detected else 'removed from'} Render from {ip} - Status: {response.status_code}")
+        log_message(f"EPC '{epc}' {'forwarded to' if detected else 'removed from'} Render from {ip} - Status: {response.status_code}", ip)
     except Exception as e:
-        log_message(f"Error sending EPC '{epc}' to Render: {str(e)}")
+        log_message(f"Error sending EPC '{epc}' to Render: {str(e)}", ip)
+
+# Bind click and double-click events to Text widgets
+shelves_text.bind("<Button-1>", lambda event: on_text_click(event, get_ip_from_text(shelves_text, event)))
+shelves_text.bind("<Double-1>", lambda event: on_text_double_click(event, get_ip_from_text(shelves_text, event)))
+return_boxes_text.bind("<Button-1>", lambda event: on_text_click(event, get_ip_from_text(return_boxes_text, event)))
+return_boxes_text.bind("<Double-1>", lambda event: on_text_double_click(event, get_ip_from_text(return_boxes_text, event)))
 
 # Start TCP server in a separate thread
 threading.Thread(target=tcp_server, daemon=True).start()
 
 # Initialize UI
-update_boxes_list()
+update_lists()
 root.mainloop()
