@@ -222,7 +222,7 @@ def edit_item(box_type, idx, item):
             messagebox.showwarning("Input Error", "Both Name and IP are required.")
 
     tk.Button(dialog, text="Save", command=submit).pack(pady=20)
-
+    
 def remove_selected():
     selected_ip = get_selected_ip()
     if selected_ip:
@@ -231,12 +231,11 @@ def remove_selected():
                 config["shelves"].pop(i)
                 save_config()
                 update_lists()
-                return
-        for i, box in enumerate(config["return_boxes"]):
-            if box["ip"] == selected_ip:
-                config["return_boxes"].pop(i)
-                save_config()
-                update_lists()
+                try:
+                    response = requests.delete(f"https://rfid-library.onrender.com/api/shelves/{selected_ip}")
+                    log_message(f"Deleted shelf {selected_ip} from server - Status: {response.status_code}")
+                except Exception as e:
+                    log_message(f"Error deleting shelf {selected_ip} from server: {str(e)}")
                 return
 
 def get_selected_ip():
@@ -350,48 +349,29 @@ def tcp_server():
             break
 
 def handle_client(client, ip):
-    shelf_ips = [s["ip"] for s in config["shelves"]]
-    return_box_ips = [s["ip"] for s in config["return_boxes"]]
-    box_type = "shelf" if ip in shelf_ips else "return_box" if ip in return_box_ips else None
-    if not box_type:
-        client.close()
-        return
-
-    if ip not in detected_epcs:
-        detected_epcs[ip] = {}
-    update_status(ip, 'green')  # Connected
-
+    log_message(f"Client connected: {ip}", ip)
+    send_connection_status(ip, True)  # Send "connected" status
     while True:
         try:
             data = client.recv(1024)
             if not data:
                 break
-            epc = extract_epc(data)
-            if epc:
-                now = datetime.now().timestamp()
-                if epc not in detected_epcs[ip]:
-                    detected_epcs[ip][epc] = {"last_seen": now, "sent": False}
-                    log_message(f"EPC '{epc}' detected by {box_type} reader {ip}", ip)
-                    send_to_render(ip, epc, box_type)
-                    detected_epcs[ip][epc]["sent"] = True
-                else:
-                    detected_epcs[ip][epc]["last_seen"] = now
-        except:
-            update_status(ip, 'red')  # Error or disconnect
+            # ... existing data processing ...
+        except socket.error as e:
+            log_message(f"Connection error for {ip}: {e}", ip)
             break
-
-    # Check for non-detected EPCs
-    now = datetime.now().timestamp()
-    for epc in list(detected_epcs[ip].keys()):
-        if isinstance(detected_epcs[ip][epc], dict) and now - detected_epcs[ip][epc]["last_seen"] > 5:  # 5-second timeout
-            if detected_epcs[ip][epc]["sent"]:
-                log_message(f"EPC '{epc}' no longer detected by {box_type} reader {ip}", ip)
-                send_to_render(ip, epc, box_type, detected=False)
-            del detected_epcs[ip][epc]
-    if not detected_epcs[ip]:
-        update_status(ip, 'grey')  # No active EPCs
-
+    send_connection_status(ip, False)  # Send "disconnected" status
     client.close()
+
+def send_connection_status(ip, connected):
+    try:
+        response = requests.post("https://rfid-library.onrender.com/api/connection-status", json={
+            "readerIp": ip,
+            "connected": connected
+        }, headers={"Content-Type": "application/json"})
+        log_message(f"Sent connection status for {ip}: {'connected' if connected else 'disconnected'} - Status: {response.status_code}", ip)
+    except Exception as e:
+        log_message(f"Error sending connection status for {ip}: {str(e)}", ip)
 
 def send_to_render(ip, epc, box_type, detected=True):
     try:

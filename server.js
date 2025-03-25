@@ -118,6 +118,17 @@ async function processReturn(epc, readerIp) {
   }
 }
 
+const connectionStatus = new Map(); // { readerIp: boolean }
+
+app.post('/api/connection-status', (req, res) => {
+    const { readerIp, connected } = req.body;
+    if (!readerIp || typeof connected !== 'boolean') {
+        return res.status(400).json({ error: 'Missing required fields: readerIp, connected' });
+    }
+    connectionStatus.set(readerIp, connected);
+    res.status(200).json({ message: 'Connection status updated' });
+});
+
 // API to update EPC status from bridge
 app.post('/api/rfid-update', ensureDbConnected, async (req, res) => {
   const { readerIp, epc, type, detected = true } = req.body;
@@ -157,48 +168,27 @@ app.post('/api/rfid-update', ensureDbConnected, async (req, res) => {
 
 // API to get current reader status
 app.get('/api/rfid-readers', ensureDbConnected, async (req, res) => {
-  try {
-    const allEpcs = await Epc.find({}).lean();
-    const shelves = await Shelf.find({}).lean();
-    const returnBoxes = await ReturnBox.find({}).lean();
+  const shelves = await Shelf.find();
+  const allEpcs = await Epc.find();
 
-    const shelfEpcs = Array.from(detectedEpcs.shelf.entries()).map(([epc, { timestamp, readerIp }]) => {
+  const shelfEpcs = Array.from(detectedEpcs.shelf.entries()).map(([epc, { timestamp, readerIp }]) => {
       const dbEpc = allEpcs.find((e) => e.epc === epc) || {};
       const shelf = shelves.find((s) => s.readerIp === readerIp) || { name: 'Unknown' };
       return { epc, timestamp, readerIp, shelfName: shelf.name, logs: dbEpc.logs || [], ...dbEpc };
-    });
+  });
 
-    const returnBoxEpcs = Array.from(detectedEpcs.returnBox.entries()).map(([epc, { timestamp, readerIp }]) => {
-      const dbEpc = allEpcs.find((e) => e.epc === epc) || {};
-      const returnBox = returnBoxes.find((r) => r.readerIp === readerIp) || { name: 'Unknown' };
-      return { epc, timestamp, readerIp, returnBoxName: returnBox.name, logs: dbEpc.logs || [], ...dbEpc };
-    });
+  const shelfReaders = shelves.map(shelf => {
+      const epcsForShelf = shelfEpcs.filter(epc => epc.readerIp === shelf.readerIp);
+      return {
+          readerIp: shelf.readerIp,
+          name: shelf.name,
+          status: connectionStatus.get(shelf.readerIp) ? 'connected' : 'disconnected',
+          epcs: epcsForShelf
+      };
+  });
 
-    const response = [
-      {
-        port: 'shelf',
-        status: shelfEpcs.length > 0 ? 'active' : 'inactive',
-        clients: shelves.length,
-        epcs: shelfEpcs,
-        type: 'shelf',
-        readers: shelves.map((shelf) => ({ readerIp: shelf.readerIp, name: shelf.name })),
-      },
-      {
-        port: 'returnBox',
-        status: returnBoxEpcs.length > 0 ? 'active' : 'inactive',
-        clients: returnBoxes.length,
-        epcs: returnBoxEpcs,
-        type: 'return box',
-        readers: returnBoxes.map((box) => ({ readerIp: box.readerIp, name: box.name })),
-      },
-    ];
-    res.json(response);
-  } catch (error) {
-    console.error('Error fetching readers:', error.message);
-    res.status(500).json({ error: 'Internal server error' });
-  }
+  res.json({ shelves: shelfReaders });
 });
-
 // API to manage shelves
 app.post('/api/shelves', ensureDbConnected, async (req, res) => {
   const { name, readerIp } = req.body;
@@ -238,6 +228,20 @@ app.post('/api/return-boxes', ensureDbConnected, async (req, res) => {
     res.status(500).json({ error: 'Failed to add return box' });
   }
 });
+
+
+app.delete('/api/shelves/:readerIp', ensureDbConnected, async (req, res) => {
+  const { readerIp } = req.params;
+  try {
+      await Shelf.deleteOne({ readerIp });
+      connectionStatus.delete(readerIp);
+      res.status(200).json({ message: 'Shelf deleted' });
+  } catch (error) {
+      console.error('Error deleting shelf:', error.message);
+      res.status(500).json({ error: 'Failed to delete shelf' });
+  }
+});
+
 
 // Start server
 const PORT = process.env.PORT || 10000;

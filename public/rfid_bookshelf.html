@@ -155,70 +155,51 @@
         let currentBookIndex = 0;
 
         async function fetchBookshelfData() {
-            try {
-                const response = await fetch('https://rfid-library.onrender.com/api/rfid-readers');
-                if (!response.ok) {
-                    throw new Error(`HTTP error! Status: ${response.status} - ${response.statusText}`);
-                }
-                const readers = await response.json();
-                const shelfData = readers.find(reader => reader.port === 'shelf');
-                updateBookshelf(shelfData);
-                // Refresh the modal if it's open
-                if (selectedReaderIp) {
-                    const epcsForReader = shelfData.epcs.filter(epc => epc.readerIp === selectedReaderIp);
-                    currentBooks = epcsForReader;
-                    // Adjust currentBookIndex if the current book was removed
-                    if (currentBookIndex >= currentBooks.length) {
-                        currentBookIndex = currentBooks.length - 1;
-                    }
-                    if (currentBooks.length === 0) {
-                        closeModal();
-                    } else {
-                        updateModal();
-                    }
-                }
-            } catch (error) {
-                console.error('Detailed error fetching RFID data:', error);
-                document.getElementById('bookshelf').innerHTML = `<p>Error loading bookshelf: ${error.message}</p>`;
-            }
+    try {
+        const response = await fetch('https://rfid-library.onrender.com/api/rfid-readers');
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status} - ${response.statusText}`);
         }
+        const data = await response.json();
+        updateBookshelf(data.shelves);
+    } catch (error) {
+        console.error('Error fetching bookshelf data:', error);
+        document.getElementById('error').innerText = 'Error fetching data: ' + error.message;
+    }
+}
 
-        function updateBookshelf(shelfData) {
-            const bookshelf = document.getElementById('bookshelf');
-            const existingShelves = new Set(
-                Array.from(bookshelf.children).map(child => child.id.replace('shelf-', ''))
-            );
-            const currentReaders = new Set(shelfData.readers.map(reader => reader.readerIp));
+function updateBookshelf(shelves) {
+    const bookshelf = document.getElementById('bookshelf');
+    const existingShelfIds = new Set([...bookshelf.children].map(child => child.id));
 
-            // Remove shelves that no longer exist
-            Array.from(bookshelf.children).forEach(child => {
-                const readerIp = child.id.replace('shelf-', '');
-                if (!currentReaders.has(readerIp)) {
-                    bookshelf.removeChild(child);
-                }
-            });
-
-            // Add or update shelves
-            shelfData.readers.forEach(reader => {
-                const epcsForReader = shelfData.epcs.filter(epc => epc.readerIp === reader.readerIp);
-                let shelf = document.getElementById(`shelf-${reader.readerIp}`);
-                if (!shelf) {
-                    shelf = document.createElement('div');
-                    shelf.className = 'shelf';
-                    shelf.id = `shelf-${reader.readerIp}`;
-                    bookshelf.appendChild(shelf);
-                }
-                shelf.innerHTML = `
-                    <div class="shelf-header">
-                        <h2>${reader.name} (${reader.readerIp})</h2>
-                        <span class="status status-${epcsForReader.length > 0 ? 'active' : 'inactive'}">
-                            ${epcsForReader.length > 0 ? 'Active' : 'Inactive'}
-                        </span>
-                    </div>
-                `;
-                shelf.onclick = () => showBooks(reader.readerIp, epcsForReader);
-            });
+    shelves.forEach(shelf => {
+        let shelfDiv = document.getElementById(`shelf-${shelf.readerIp}`);
+        if (!shelfDiv) {
+            shelfDiv = document.createElement('div');
+            shelfDiv.className = 'shelf';
+            shelfDiv.id = `shelf-${shelf.readerIp}`;
+            bookshelf.appendChild(shelfDiv);
         }
+        const statusClass = shelf.status === 'connected' ? 'active' : 'inactive';
+        shelfDiv.innerHTML = `
+            <div class="shelf-header">
+                <h2>${shelf.name} (${shelf.readerIp})</h2>
+                <span class="status status-${statusClass}">
+                    ${shelf.status}
+                </span>
+            </div>
+        `;
+        shelfDiv.onclick = () => showBooks(shelf.readerIp, shelf.epcs);
+    });
+
+    // Remove shelves no longer in the data
+    existingShelfIds.forEach(id => {
+        if (!shelves.some(s => `shelf-${s.readerIp}` === id)) {
+            const shelfDiv = document.getElementById(id);
+            if (shelfDiv) bookshelf.removeChild(shelfDiv);
+        }
+    });
+}
 
         async function addNewShelf() {
             const ipInput = document.getElementById('new-shelf-ip');
@@ -267,7 +248,9 @@
             if (currentBook) {
                 currentBookDiv.innerHTML = `
                     <strong>${currentBook.title}</strong><br>
-                    ${currentBook.author.join(', ')}<br>
+                    Author: ${currentBook.author.join(', ')}<br>
+                    Status: ${currentBook.status}<br>
+                    ISBN: ${currentBook.industryIdentifier ? currentBook.industryIdentifier.join(', ') : 'N/A'}<br>
                     EPC: ${currentBook.epc}
                 `;
             } else {
