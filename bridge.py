@@ -74,7 +74,7 @@ return_boxes_text = tk.Text(return_boxes_inner_frame, height=20, width=40, yscro
 return_boxes_text.pack(fill="both", expand=True)
 return_boxes_scroll.config(command=return_boxes_text.yview)
 
-# Status lights and labels dictionary
+# Status widgets dictionary
 status_widgets = {}  # {ip: {'canvas': canvas, 'light': light_id, 'text_widget': text_widget, 'line': line_number}}
 
 def log_message(message, ip=None):
@@ -93,15 +93,6 @@ def get_next_default_name(box_type):
         if not any(item["name"] == name for item in items):
             return name
         count += 1
-
-def get_item_name(ip):
-    for shelf in config["shelves"]:
-        if shelf["ip"] == ip:
-            return shelf["name"]
-    for box in config["return_boxes"]:
-        if box["ip"] == ip:
-            return box["name"]
-    return "Unknown"
 
 def update_lists():
     shelves_text.config(state="normal")
@@ -235,12 +226,22 @@ def remove_selected():
                 config["shelves"].pop(i)
                 save_config()
                 update_lists()
+                try:
+                    response = requests.delete(f"https://rfid-library.onrender.com/api/shelves/{selected_ip}")
+                    log_message(f"Deleted shelf {selected_ip} from server - Status: {response.status_code}")
+                except Exception as e:
+                    log_message(f"Error deleting shelf {selected_ip} from server: {str(e)}")
                 return
         for i, box in enumerate(config["return_boxes"]):
             if box["ip"] == selected_ip:
                 config["return_boxes"].pop(i)
                 save_config()
                 update_lists()
+                try:
+                    response = requests.delete(f"https://rfid-library.onrender.com/api/return-boxes/{selected_ip}")
+                    log_message(f"Deleted return box {selected_ip} from server - Status: {response.status_code}")
+                except Exception as e:
+                    log_message(f"Error deleting return box {selected_ip} from server: {str(e)}")
                 return
 
 def get_selected_ip():
@@ -298,6 +299,15 @@ def show_item_log_window(ip):
         log_display.insert(tk.END, "No EPC detection logs for this device.\n")
     log_display.config(state="disabled")
 
+def get_item_name(ip):
+    for shelf in config["shelves"]:
+        if shelf["ip"] == ip:
+            return shelf["name"]
+    for box in config["return_boxes"]:
+        if box["ip"] == ip:
+            return box["name"]
+    return "Unknown"
+
 def on_text_click(event, ip):
     if ip:
         show_item_log(ip)
@@ -348,6 +358,7 @@ def handle_client(client, ip):
         detected_epcs[ip] = {}
     update_status(ip, 'green')
     send_connection_status(ip, True)
+    log_message(f"Client connected: {ip}", ip)
 
     while True:
         try:
