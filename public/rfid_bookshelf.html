@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RFID Library System</title>
+    <title>RFID Bookshelves</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -18,16 +18,15 @@
             color: #333;
             margin-bottom: 20px;
         }
-        .bookshelf, .return-boxes {
+        .bookshelf {
             width: 80%;
             max-width: 1000px;
             background-color: #8B4513;
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-            margin-bottom: 20px;
         }
-        .shelf, .return-box {
+        .shelf {
             background-color: #A0522D;
             margin: 15px 0;
             padding: 15px;
@@ -136,15 +135,6 @@
         <button onclick="addNewShelf()">Add New Shelf</button>
     </div>
 
-    <h1>RFID Return Boxes</h1>
-    <div class="return-boxes" id="return-boxes">
-        <!-- Return boxes will be populated here -->
-    </div>
-    <div class="add-box">
-        <input type="text" id="new-return-box-ip" placeholder="Enter Return Box IP (e.g., 192.168.3.102)">
-        <button onclick="addNewReturnBox()">Add New Return Box</button>
-    </div>
-
     <div class="modal" id="book-modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal()">×</span>
@@ -168,12 +158,10 @@
                     throw new Error(`HTTP error! Status: ${response.status}`);
                 }
                 const data = await response.json();
-                updateBookshelf(data.shelves, 'bookshelf', 'shelf');
-                updateBookshelf(data.returnBoxes || [], 'return-boxes', 'return_box');
+                updateBookshelf(data.shelves);
                 if (selectedReaderIp) {
-                    const allItems = [...(data.shelves || []), ...(data.returnBoxes || [])];
-                    const item = allItems.find(i => i.readerIp === selectedReaderIp);
-                    currentBooks = item ? item.epcs : [];
+                    const shelf = data.shelves.find(s => s.readerIp === selectedReaderIp);
+                    currentBooks = shelf ? shelf.epcs : [];
                     if (currentBookIndex >= currentBooks.length) {
                         currentBookIndex = Math.max(0, currentBooks.length - 1);
                     }
@@ -188,35 +176,40 @@
                     }
                 }
             } catch (error) {
-                console.error('Error fetching RFID data:', error);
+                console.error('Error fetching bookshelf data:', error);
                 document.getElementById('bookshelf').innerHTML = `<p>Error loading bookshelves: ${error.message}</p>`;
-                document.getElementById('return-boxes').innerHTML = `<p>Error loading return boxes: ${error.message}</p>`;
             }
         }
 
-        function updateBookshelf(items, containerId, type) {
-            const container = document.getElementById(containerId);
-            const existing = new Set(Array.from(container.children).map(child => child.id.replace(`${type}-`, '')));
-            Array.from(container.children).forEach(child => {
-                const readerIp = child.id.replace(`${type}-`, '');
-                if (!items.some(s => s.readerIp === readerIp)) container.removeChild(child);
-            });
-            items.forEach(item => {
-                let div = document.getElementById(`${type}-${item.readerIp}`);
-                if (!div) {
-                    div = document.createElement('div');
-                    div.className = type === 'shelf' ? 'shelf' : 'return-box';
-                    div.id = `${type}-${item.readerIp}`;
-                    container.appendChild(div);
+        function updateBookshelf(shelves) {
+            const bookshelf = document.getElementById('bookshelf');
+            const existingShelves = new Set(
+                Array.from(bookshelf.children).map(child => child.id.replace('shelf-', ''))
+            );
+
+            Array.from(bookshelf.children).forEach(child => {
+                const readerIp = child.id.replace('shelf-', '');
+                if (!shelves.some(s => s.readerIp === readerIp)) {
+                    bookshelf.removeChild(child);
                 }
-                const statusClass = item.status === 'active' ? 'active' : 'inactive';
-                div.innerHTML = `
+            });
+
+            shelves.forEach(shelf => {
+                let shelfDiv = document.getElementById(`shelf-${shelf.readerIp}`);
+                if (!shelfDiv) {
+                    shelfDiv = document.createElement('div');
+                    shelfDiv.className = 'shelf';
+                    shelfDiv.id = `shelf-${shelf.readerIp}`;
+                    bookshelf.appendChild(shelfDiv);
+                }
+                const statusClass = shelf.status === 'active' ? 'active' : 'inactive';
+                shelfDiv.innerHTML = `
                     <div class="shelf-header">
-                        <h2>${item.name} (${item.readerIp})</h2>
-                        <span class="status status-${statusClass}">${item.status}</span>
+                        <h2>${shelf.name} (${shelf.readerIp})</h2>
+                        <span class="status status-${statusClass}">${shelf.status}</span>
                     </div>
                 `;
-                div.onclick = () => showBooks(item.readerIp, item.epcs);
+                shelfDiv.onclick = () => showBooks(shelf.readerIp, shelf.epcs);
             });
         }
 
@@ -239,28 +232,6 @@
             } catch (error) {
                 console.error('Error adding shelf:', error);
                 alert(`Error adding shelf: ${error.message}`);
-            }
-        }
-
-        async function addNewReturnBox() {
-            const ipInput = document.getElementById('new-return-box-ip');
-            const readerIp = ipInput.value.trim();
-            if (!readerIp) {
-                alert('Please enter a valid IP address.');
-                return;
-            }
-            try {
-                const response = await fetch('https://rfid-library.onrender.com/api/return-boxes', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: `Return Box ${readerIp.split('.').pop()}`, readerIp })
-                });
-                if (!response.ok) throw new Error(`Failed to add return box: ${await response.text()}`);
-                ipInput.value = '';
-                fetchBookshelfData();
-            } catch (error) {
-                console.error('Error adding return box:', error);
-                alert(`Error adding return box: ${error.message}`);
             }
         }
 
