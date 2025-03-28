@@ -10,24 +10,21 @@ import time
 # Configuration
 CONFIG_FILE = "rfid_config.json"
 RENDER_URL = "https://rfid-library.onrender.com/api/rfid-update"
-PORT = 5000
+LISTEN_PORT = 5000
 
-# Load or initialize config
 try:
     with open(CONFIG_FILE, 'r') as f:
         config = json.load(f)
 except FileNotFoundError:
     config = {"shelves": [], "return_boxes": []}
 
-# Detected EPCs state
-detected_epcs = {}  # {ip: {epc: {last_seen: timestamp, sent: bool, log: []}, status: str}}
+detected_epcs = {}
+notified_ips = set()
 
-# GUI Setup
 root = tk.Tk()
 root.title("RFID Bridge")
 root.geometry("700x600")
 
-# Log Display
 log_frame = tk.Frame(root)
 log_frame.pack(fill="both", expand=True, padx=10, pady=5)
 tk.Label(log_frame, text="EPC Detection Log", font=("Arial", 12, "bold")).pack()
@@ -39,7 +36,6 @@ log_text = tk.Text(log_inner_frame, height=5, width=80, state="disabled", yscrol
 log_text.pack(fill="both", expand=True)
 log_scroll.config(command=log_text.yview)
 
-# Buttons
 button_frame = tk.Frame(root)
 button_frame.pack(pady=5)
 tk.Button(button_frame, text="Add Bookshelf", command=lambda: add_box("shelf")).pack(side="left", padx=5)
@@ -47,7 +43,6 @@ tk.Button(button_frame, text="Add Return Box", command=lambda: add_box("return_b
 tk.Button(button_frame, text="Edit", command=lambda: edit_selected()).pack(side="left", padx=5)
 tk.Button(button_frame, text="Remove", command=lambda: remove_selected()).pack(side="left", padx=5)
 
-# Bookshelves and Return Boxes Display
 lists_frame = tk.Frame(root)
 lists_frame.pack(fill="x", padx=10, pady=5)
 
@@ -85,16 +80,21 @@ def get_item_type(ip):
 def check_stale_epcs():
     now = datetime.now().timestamp()
     for ip, epcs in list(detected_epcs.items()):
+        if not isinstance(epcs, dict):
+            print(f"Warning: Skipping invalid epcs for IP {ip}: {epcs}")
+            continue
         to_remove = []
         for epc, data in epcs.items():
-            if epc != "status" and now - data["last_seen"] > 5:
+            if epc == "status" or not isinstance(data, dict) or "last_seen" not in data:
+                continue
+            if now - data["last_seen"] > 5:
                 to_remove.append(epc)
-                if data["sent"]:
+                if data.get("sent", False):
                     log_message(f"EPC '{epc}' no longer detected by {get_item_type(ip)} reader {ip}", ip)
                     send_to_render(ip, epc, get_item_type(ip), detected=False)
         for epc in to_remove:
             del epcs[epc]
-        if len(epcs) == 1 and "status" in epcs:  # Only status remains
+        if len(epcs) == 1 and "status" in epcs:
             update_status(ip, 'grey')
 
 def periodic_check_stale_epcs():
@@ -196,7 +196,6 @@ def add_box(box_type):
             save_config()
             update_lists()
             dialog.destroy()
-            # Register shelf with Render.com
             try:
                 requests.post(f"https://rfid-library.onrender.com/api/{key}", 
                               json={"name": name, "readerIp": ip},
@@ -356,11 +355,6 @@ def on_text_double_click(event, ip):
     if ip:
         show_item_log_window(ip)
 
-schemes = {
-    "epc": bytearray.fromhex("E200"),
-    "alive": bytearray.fromhex("E2006006750A01300140E00000000000"),
-    "connect": bytearray.fromhex("E2006006750A01300140E00000000000"),
-}
 def get_ip_from_text(text_widget, event):
     index = text_widget.index(f"@{event.x},{event.y}")
     line = int(index.split('.')[0])
@@ -370,26 +364,24 @@ def get_ip_from_text(text_widget, event):
     return None
 
 def extract_epc(data):
-    # Simplified EPC extraction (adjust based on your reader's data format)
     hex_data = data.hex().upper()
-    if hex_data.startswith("E200"):
-        return hex_data[4:28] if len(hex_data) >= 28 else None
+    if len(hex_data) >= 20:
+        return hex_data[8:20]
     return None
 
 def tcp_server():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
-        server.bind(('0.0.0.0', PORT))
+        server.bind(('0.0.0.0', LISTEN_PORT))
         server.listen(5)
-        log_message(f"TCP server listening on port {PORT}")
-        # Log potential connectable IPs (simplified LAN scan)
+        log_message(f"TCP server listening on port {LISTEN_PORT}")
         local_ip = socket.gethostbyname(socket.gethostname())
         base_ip = ".".join(local_ip.split(".")[:-1]) + "."
         for i in range(1, 255):
             ip = f"{base_ip}{i}"
             if ip in [s["ip"] for s in config["shelves"] + config["return_boxes"]]:
-                log_message(f"Potential connectable IP: {ip}")
+                log_message(f"Configured RFID reader IP: {ip}")
     except Exception as e:
         log_message(f"Failed to start TCP server: {str(e)}")
         return
@@ -403,10 +395,12 @@ def tcp_server():
             break
 
 def handle_client(client, ip):
-    shelf_ips = [s["ip"] for s in config["shelves"]]
-    return_box_ips = [s["ip"] for s in config["return_boxes"]]
-    box_type = "shelf" if ip in shelf_ips else "return_box" if ip in return_box_ips else None
+    box_type = get_item_type(ip)
+    
     if not box_type:
+        if ip not in notified_ips:
+            log_message(f"(detect IP {ip} can be connect)")
+            notified_ips.add(ip)
         client.close()
         return
 
@@ -414,7 +408,7 @@ def handle_client(client, ip):
         detected_epcs[ip] = {}
         update_status(ip, 'green')
         send_connection_status(ip, True)
-        log_message(f"Client connected: {ip}", ip)
+        log_message(f"Client connected: {ip} ({box_type})", ip)
 
     while True:
         try:
@@ -449,17 +443,23 @@ def handle_client(client, ip):
     send_connection_status(ip, False)
     client.close()
 
-def send_to_render(ip, epc, box_type, detected=True):
-    try:
-        response = requests.post(RENDER_URL, json={
-            "readerIp": ip,
-            "epc": epc,
-            "type": box_type,
-            "detected": detected
-        }, headers={"Content-Type": "application/json"})
-        log_message(f"EPC '{epc}' {'forwarded to' if detected else 'removed from'} Render from {ip} - Status: {response.status_code}", ip)
-    except Exception as e:
-        log_message(f"Error sending EPC '{epc}' to Render: {str(e)}", ip)
+def send_to_render(ip, epc, box_type, detected=True, retries=3):
+    for attempt in range(retries):
+        try:
+            response = requests.post(RENDER_URL, json={
+                "readerIp": ip,
+                "epc": epc,
+                "type": box_type,
+                "detected": detected
+            }, headers={"Content-Type": "application/json"}, timeout=5)
+            log_message(f"EPC '{epc}' {'forwarded to' if detected else 'removed from'} Render from {ip} - Status: {response.status_code}", ip)
+            return
+        except Exception as e:
+            log_message(f"Attempt {attempt + 1} failed for EPC '{epc}': {str(e)}", ip)
+            if attempt < retries - 1:
+                time.sleep(2)
+            else:
+                log_message(f"Failed to send EPC '{epc}' after {retries} attempts", ip)
 
 def send_connection_status(ip, connected):
     try:
@@ -467,19 +467,16 @@ def send_connection_status(ip, connected):
             "readerIp": ip,
             "connected": connected
         }, headers={"Content-Type": "application/json"})
-        log_message(f"Sent dash connection status for {ip}: {'connected' if connected else 'disconnected'} - Status: {response.status_code}", ip)
+        log_message(f"Sent connection status for {ip}: {'connected' if connected else 'disconnected'} - Status: {response.status_code}", ip)
     except Exception as e:
         log_message(f"Error sending connection status for {ip}: {str(e)}", ip)
 
-# Bind events
 shelves_text.bind("<Button-1>", lambda event: on_text_click(event, get_ip_from_text(shelves_text, event)))
 shelves_text.bind("<Double-1>", lambda event: on_text_double_click(event, get_ip_from_text(shelves_text, event)))
 return_boxes_text.bind("<Button-1>", lambda event: on_text_click(event, get_ip_from_text(return_boxes_text, event)))
 return_boxes_text.bind("<Double-1>", lambda event: on_text_double_click(event, get_ip_from_text(return_boxes_text, event)))
 
-# Start TCP server
 threading.Thread(target=tcp_server, daemon=True).start()
 
-# Initialize UI
 update_lists()
 root.mainloop()

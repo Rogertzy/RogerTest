@@ -19,14 +19,16 @@ const Epc = mongoose.model('EPC', epcSchema);
 
 const shelfSchema = new mongoose.Schema({
     readerIp: { type: String, required: true, unique: true },
-    name: { type: String, required: true }
+    name: { type: String, required: true },
+    connected: { type: Boolean, default: false }
 });
 
 const Shelf = mongoose.model('Shelf', shelfSchema);
 
 const returnBoxSchema = new mongoose.Schema({
     readerIp: { type: String, required: true, unique: true },
-    name: { type: String, required: true }
+    name: { type: String, required: true },
+    connected: { type: Boolean, default: false }
 });
 
 const ReturnBox = mongoose.model('ReturnBox', returnBoxSchema);
