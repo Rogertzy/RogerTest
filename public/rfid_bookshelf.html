@@ -26,6 +26,11 @@
             border-radius: 10px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
+        .bookshelf.loading::after {
+            content: ' (Loading...)';
+            color: #fff;
+            font-size: 14px;
+        }
         .shelf {
             background-color: #A0522D;
             margin: 15px 0;
@@ -39,11 +44,21 @@
             justify-content: space-between;
             align-items: center;
             color: white;
-            margin-bottom: 10px;
+            margin-bottom: 10px; /* Fixed typo */
         }
         .shelf-header h2 {
             margin: 0;
             font-size: 18px;
+            cursor: pointer;
+        }
+        .shelf-header input {
+            margin: 0;
+            font-size: 18px;
+            padding: 2px 5px;
+            background-color: #fff;
+            border: 1px solid #333;
+            border-radius: 3px;
+            color: #333;
         }
         .shelf-header button {
             background-color: #333;
@@ -160,11 +175,11 @@
     <div class="modal" id="book-modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal()">×</span>
-            <button class="nav-button" id="prev-button" onclick="prevBook()"><</button>
+            <button class="nav-button" id="prev-button" onclick="prevBook()">&lt;</button>
             <div class="book-small" id="prev-book"></div>
             <div class="book-large" id="current-book"></div>
             <div class="book-small" id="next-book"></div>
-            <button class="nav-button" id="next-button" onclick="nextBook()">></button>
+            <button class="nav-button" id="next-button" onclick="nextBook()">&gt;</button>
         </div>
     </div>
 
@@ -172,18 +187,27 @@
         let selectedReaderIp = null;
         let currentBooks = [];
         let currentBookIndex = 0;
+        let editingShelfIp = null;
 
         async function fetchBookshelfData() {
+            const bookshelf = document.getElementById('bookshelf');
+            bookshelf.classList.add('loading');
             try {
-                const response = await fetch('./api/rfid-readers');
+                const response = await fetch('./api/rfid-readers', {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
                 if (!response.ok) {
                     throw new Error(`HTTP error! Status: ${response.status}`);
                 }
                 const data = await response.json();
+                if (!data.shelves) {
+                    throw new Error('Invalid API response: shelves data missing');
+                }
                 updateBookshelf(data.shelves);
                 if (selectedReaderIp) {
                     const shelf = data.shelves.find(s => s.readerIp === selectedReaderIp);
-                    currentBooks = shelf ? shelf.epcs : [];
+                    currentBooks = shelf ? shelf.epcs || [] : [];
                     if (currentBookIndex >= currentBooks.length) {
                         currentBookIndex = Math.max(0, currentBooks.length - 1);
                     }
@@ -199,7 +223,10 @@
                 }
             } catch (error) {
                 console.error('Error fetching bookshelf data:', error);
-                document.getElementById('bookshelf').innerHTML = `<p>Error loading bookshelves: ${error.message}</p>`;
+                bookshelf.innerHTML = `<p>Error loading bookshelves: ${error.message}. Retrying in 5 seconds...</p>`;
+                setTimeout(fetchBookshelfData, 5000);
+            } finally {
+                bookshelf.classList.remove('loading');
             }
         }
 
@@ -225,28 +252,75 @@
                     bookshelf.appendChild(shelfDiv);
                 }
                 const statusClass = shelf.status === 'active' ? 'active' : 'inactive';
+                const isEditing = editingShelfIp === shelf.readerIp;
                 shelfDiv.innerHTML = `
                     <div class="shelf-header">
-                        <h2>${shelf.name} (${shelf.readerIp})</h2>
-                        <div>
-                            <button onclick="editShelfName('${shelf.readerIp}', '${shelf.name}')" style="margin-right: 10px;">Edit Name</button>
-                            <span class="status status-${statusClass}">${shelf.status}</span>
-                        </div>
+                        ${isEditing ? 
+                            `<input type="text" id="edit-${shelf.readerIp}" value="${shelf.name}" onblur="saveShelfName('${shelf.readerIp}')" onkeypress="if(event.key === 'Enter') saveShelfName('${shelf.readerIp}'); if(event.key === 'Escape') cancelEditing('${shelf.readerIp}')">` :
+                            `<h2 onclick="startEditing('${shelf.readerIp}')">${shelf.name} (${shelf.readerIp})</h2>`
+                        }
+                        <span class="status status-${statusClass}">${shelf.status}</span>
                     </div>
                 `;
                 shelfDiv.onclick = (e) => {
-                    if (e.target.tagName !== 'BUTTON') {
+                    if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'H2') {
                         showBooks(shelf.readerIp, shelf.epcs);
                     }
                 };
             });
         }
 
+        function startEditing(readerIp) {
+            if (editingShelfIp && editingShelfIp !== readerIp) {
+                alert('Please finish editing the current shelf first.');
+                return;
+            }
+            editingShelfIp = readerIp;
+            fetchBookshelfData().then(() => {
+                const input = document.getElementById(`edit-${readerIp}`);
+                if (input) input.focus();
+            });
+        }
+
+        async function saveShelfName(readerIp) {
+            const input = document.getElementById(`edit-${readerIp}`);
+            const newName = input.value.trim();
+            if (newName === '') {
+                alert('Shelf name cannot be empty');
+                return;
+            }
+            try {
+                const response = await fetch(`./api/shelves/${readerIp}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: newName, readerIp })
+                });
+                if (!response.ok) {
+                    throw new Error(`Failed to update shelf name: ${await response.text()}`);
+                }
+                editingShelfIp = null;
+                fetchBookshelfData();
+            } catch (error) {
+                console.error('Error updating shelf name:', error);
+                alert(`Error updating shelf name: ${error.message}`);
+            }
+        }
+
+        function cancelEditing(readerIp) {
+            editingShelfIp = null;
+            fetchBookshelfData();
+        }
+
+        function isValidIP(ip) {
+            const regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+            return regex.test(ip) && ip.split('.').every(num => num >= 0 && num <= 255);
+        }
+
         async function addNewShelf() {
             const ipInput = document.getElementById('new-shelf-ip');
             const readerIp = ipInput.value.trim();
-            if (!readerIp) {
-                alert('Please enter a valid IP address to add.');
+            if (!isValidIP(readerIp)) {
+                alert('Please enter a valid IP address (e.g., 192.168.1.1)');
                 return;
             }
             try {
@@ -267,10 +341,11 @@
         async function deleteShelf() {
             const ipInput = document.getElementById('delete-shelf-ip');
             const readerIp = ipInput.value.trim();
-            if (!readerIp) {
-                alert('Please enter a valid IP address to delete.');
+            if (!isValidIP(readerIp)) {
+                alert('Please enter a valid IP address (e.g., 192.168.1.1)');
                 return;
             }
+            if (!confirm(`Are you sure you want to delete shelf ${readerIp}?`)) return;
             try {
                 const response = await fetch(`./api/shelves/${readerIp}`, {
                     method: 'DELETE'
@@ -281,28 +356,6 @@
             } catch (error) {
                 console.error('Error deleting shelf:', error);
                 alert(`Error deleting shelf: ${error.message}`);
-            }
-        }
-
-        async function editShelfName(readerIp, currentName) {
-            const newName = prompt('Enter new shelf name:', currentName);
-            if (newName === null || newName.trim() === '') {
-                alert('Shelf name cannot be empty');
-                return;
-            }
-            try {
-                const response = await fetch(`./api/shelves/${readerIp}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: newName.trim(), readerIp })
-                });
-                if (!response.ok) {
-                    throw new Error(`Failed to update shelf name: ${await response.text()}`);
-                }
-                fetchBookshelfData();
-            } catch (error) {
-                console.error('Error updating shelf name:', error);
-                alert(`Error updating shelf name: ${error.message}`);
             }
         }
 
@@ -324,9 +377,9 @@
         }
 
         function updateModal() {
-            const currentBook = currentBooks[currentBookIndex];
-            const prevBook = currentBooks[currentBookIndex - 1];
-            const nextBook = currentBooks[currentBookIndex + 1];
+            const currentBook = currentBooks[currentBookIndex] || {};
+            const prevBook = currentBooks[currentBookIndex - 1] || {};
+            const nextBook = currentBooks[currentBookIndex + 1] || {};
 
             const currentBookDiv = document.getElementById('current-book');
             const prevBookDiv = document.getElementById('prev-book');
@@ -334,42 +387,36 @@
             const prevButton = document.getElementById('prev-button');
             const nextButton = document.getElementById('next-button');
 
-            if (currentBook) {
-                currentBookDiv.innerHTML = `
-                    <strong>${currentBook.title || 'Unknown Title'}</strong><br>
-                    Author: ${currentBook.author ? currentBook.author.join(', ') : 'Unknown Author'}<br>
-                    Status: ${currentBook.status || 'Unknown'}<br>
-                    EPC: ${currentBook.epc}
-                `;
-            } else {
-                currentBookDiv.innerHTML = 'No books detected.';
-            }
+            currentBookDiv.innerHTML = currentBooks.length > 0 ? `
+                <strong>${currentBook.title || 'Unknown Title'}</strong><br>
+                Author: ${currentBook.author ? currentBook.author.join(', ') : 'Unknown Author'}<br>
+                Status: ${currentBook.status || 'Unknown'}<br>
+                EPC: ${currentBook.epc || 'N/A'}
+            ` : 'No books detected.';
 
-            prevBookDiv.innerHTML = prevBook ? `
+            prevBookDiv.innerHTML = prevBook.epc ? `
                 <strong>${prevBook.title || 'Unknown Title'}</strong><br>
                 ${prevBook.author ? prevBook.author.join(', ') : 'Unknown Author'}
             ` : '';
-            nextBookDiv.innerHTML = nextBook ? `
+            nextBookDiv.innerHTML = nextBook.epc ? `
                 <strong>${nextBook.title || 'Unknown Title'}</strong><br>
                 ${nextBook.author ? nextBook.author.join(', ') : 'Unknown Author'}
             ` : '';
 
-            prevButton.disabled = !prevBook;
-            nextButton.disabled = !nextBook;
+            prevButton.disabled = currentBookIndex <= 0 || currentBooks.length === 0;
+            nextButton.disabled = currentBookIndex >= currentBooks.length - 1 || currentBooks.length === 0;
         }
 
         function prevBook() {
-            if (currentBookIndex > 0) {
-                currentBookIndex--;
-                updateModal();
-            }
+            if (currentBooks.length === 0 || currentBookIndex <= 0) return;
+            currentBookIndex--;
+            updateModal();
         }
 
         function nextBook() {
-            if (currentBookIndex < currentBooks.length - 1) {
-                currentBookIndex++;
-                updateModal();
-            }
+            if (currentBooks.length === 0 || currentBookIndex >= currentBooks.length - 1) return;
+            currentBookIndex++;
+            updateModal();
         }
 
         function closeModal() {
