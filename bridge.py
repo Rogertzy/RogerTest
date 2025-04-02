@@ -197,11 +197,14 @@ def add_box(box_type):
             update_lists()
             dialog.destroy()
             try:
-                requests.post(f"https://rfid-library.onrender.com/api/{key}", 
-                              json={"name": name, "readerIp": ip},
-                              headers={"Content-Type": "application/json"})
+                response = requests.post(
+                    f"https://rfid-library.onrender.com/api/{key}",
+                    json={"name": name, "readerIp": ip},
+                    headers={"Content-Type": "application/json"}
+                )
+                log_message(f"Added {box_type} {name} ({ip}) to server - Status: {response.status_code}")
             except Exception as e:
-                log_message(f"Error registering {box_type} {ip} with Render: {str(e)}")
+                log_message(f"Error registering {box_type} {ip} with server: {str(e)}")
         else:
             messagebox.showwarning("Input Error", "Both Name and IP are required.")
 
@@ -218,6 +221,8 @@ def edit_selected():
             if box["ip"] == selected_ip:
                 edit_item("return_box", i, box)
                 return
+    else:
+        messagebox.showwarning("Selection Error", "Please select an item to edit.")
 
 def edit_item(box_type, idx, item):
     dialog = tk.Toplevel(root)
@@ -244,23 +249,46 @@ def edit_item(box_type, idx, item):
         ip = ip_entry.get().strip()
         if name and ip:
             key = "shelves" if box_type == "shelf" else "return_boxes"
-            old_ip = item["ip"]  # Store the original IP in case it changes
+            old_ip = item["ip"]
+            old_name = item["name"]
+            
+            # Update local config
             config[key][idx] = {"name": name, "ip": ip}
             save_config()
             update_lists()
             dialog.destroy()
             
-            # Add server update
+            # Update server by deleting old and adding new
             try:
-                endpoint = f"https://rfid-library.onrender.com/api/{key}/{old_ip}"
-                response = requests.put(
-                    endpoint,
+                # Delete the old entry
+                delete_endpoint = f"https://rfid-library.onrender.com/api/{key}/{old_ip}"
+                delete_response = requests.delete(delete_endpoint)
+                if delete_response.status_code in (200, 204, 404):  # 404 is okay if already gone
+                    log_message(f"Deleted old {box_type} {old_ip} from server - Status: {delete_response.status_code}")
+                else:
+                    log_message(f"Failed to delete old {box_type} {old_ip} from server - Status: {delete_response.status_code}")
+                
+                # Add the new entry
+                add_endpoint = f"https://rfid-library.onrender.com/api/{key}"
+                add_response = requests.post(
+                    add_endpoint,
                     json={"name": name, "readerIp": ip},
-                    headers={"Content-Type": "application/json"}
+                    headers={"Content-Type": "application/json"},
+                    timeout=5
                 )
-                log_message(f"Updated {box_type} {ip} on server - Status: {response.status_code}")
+                if add_response.status_code in (200, 201):
+                    log_message(f"Updated {box_type} from '{old_name}' ({old_ip}) to '{name}' ({ip}) on server")
+                else:
+                    log_message(f"Failed to update {box_type} {ip} on server - Status: {add_response.status_code}")
+                    messagebox.showerror("Server Error", f"Failed to update {box_type} on server. Status: {add_response.status_code}")
+                
+                # Handle IP change in detected_epcs
+                if old_ip != ip and old_ip in detected_epcs:
+                    detected_epcs[ip] = detected_epcs.pop(old_ip)
+                    update_status(ip, detected_epcs[ip].get('status', 'grey'))
             except Exception as e:
                 log_message(f"Error updating {box_type} {ip} on server: {str(e)}")
+                messagebox.showerror("Server Error", f"Failed to update {box_type} on server: {str(e)}")
         else:
             messagebox.showwarning("Input Error", "Both Name and IP are required.")
 
@@ -450,7 +478,7 @@ def handle_client(client, ip):
                 log_message(f"EPC '{epc}' no longer detected by {box_type} reader {ip}", ip)
                 send_to_render(ip, epc, box_type, detected=False)
             del detected_epcs[ip][epc]
-    if len(detected_epcs[ip]) == 1 and "status" in detected_epcs[ip]:
+    if len(detected_epcs[ip]) == 1 and "status" in epc:
         update_status(ip, 'grey')
 
     send_connection_status(ip, False)
