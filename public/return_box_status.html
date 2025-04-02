@@ -145,7 +145,7 @@
 
         async function fetchReturnBoxData() {
             try {
-                const response = await fetch('.api/rfid-readers');
+                const response = await fetch('./api/rfid-readers');
                 if (!response.ok) {
                     throw new Error(`HTTP error! Status: ${response.status}`);
                 }
