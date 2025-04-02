@@ -45,17 +45,6 @@
             margin: 0;
             font-size: 18px;
         }
-        .shelf-header button {
-            background-color: #333;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 3px;
-            cursor: pointer;
-        }
-        .shelf-header button:hover {
-            background-color: #555;
-        }
         .status {
             font-size: 14px;
             padding: 5px 10px;
@@ -73,7 +62,7 @@
         }
         .add-box input {
             margin-right: 10px;
-            width: 250px;
+            width: 250px; /* Adjusted size of input field */
             padding: 5px;
         }
         .add-box button {
@@ -175,7 +164,7 @@
 
         async function fetchBookshelfData() {
             try {
-                const response = await fetch('./api/rfid-readers');
+                const response = await fetch('https://rfid-library.onrender.com/api/rfid-readers');
                 if (!response.ok) {
                     throw new Error(`HTTP error! Status: ${response.status}`);
                 }
@@ -228,17 +217,10 @@
                 shelfDiv.innerHTML = `
                     <div class="shelf-header">
                         <h2>${shelf.name} (${shelf.readerIp})</h2>
-                        <div>
-                            <button onclick="editShelfName('${shelf.readerIp}', '${shelf.name}')" style="margin-right: 10px;">Edit Name</button>
-                            <span class="status status-${statusClass}">${shelf.status}</span>
-                        </div>
+                        <span class="status status-${statusClass}">${shelf.status}</span>
                     </div>
                 `;
-                shelfDiv.onclick = (e) => {
-                    if (e.target.tagName !== 'BUTTON') {
-                        showBooks(shelf.readerIp, shelf.epcs);
-                    }
-                };
+                shelfDiv.onclick = () => showBooks(shelf.readerIp, shelf.epcs);
             });
         }
 
@@ -250,7 +232,7 @@
                 return;
             }
             try {
-                const response = await fetch('./api/shelves', {
+                const response = await fetch('https://rfid-library.onrender.com/api/shelves', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name: `Bookshelf ${readerIp.split('.').pop()}`, readerIp })
@@ -272,7 +254,7 @@
                 return;
             }
             try {
-                const response = await fetch(`./api/shelves/${readerIp}`, {
+                const response = await fetch(`https://rfid-library.onrender.com/api/shelves/${readerIp}`, {
                     method: 'DELETE'
                 });
                 if (!response.ok) throw new Error(`Failed to delete shelf: ${await response.text()}`);
@@ -281,28 +263,6 @@
             } catch (error) {
                 console.error('Error deleting shelf:', error);
                 alert(`Error deleting shelf: ${error.message}`);
-            }
-        }
-
-        async function editShelfName(readerIp, currentName) {
-            const newName = prompt('Enter new shelf name:', currentName);
-            if (newName === null || newName.trim() === '') {
-                alert('Shelf name cannot be empty');
-                return;
-            }
-            try {
-                const response = await fetch(`./api/shelves/${readerIp}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: newName.trim(), readerIp })
-                });
-                if (!response.ok) {
-                    throw new Error(`Failed to update shelf name: ${await response.text()}`);
-                }
-                fetchBookshelfData();
-            } catch (error) {
-                console.error('Error updating shelf name:', error);
-                alert(`Error updating shelf name: ${error.message}`);
             }
         }
 

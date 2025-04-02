@@ -244,10 +244,23 @@ def edit_item(box_type, idx, item):
         ip = ip_entry.get().strip()
         if name and ip:
             key = "shelves" if box_type == "shelf" else "return_boxes"
+            old_ip = item["ip"]  # Store the original IP in case it changes
             config[key][idx] = {"name": name, "ip": ip}
             save_config()
             update_lists()
             dialog.destroy()
+            
+            # Add server update
+            try:
+                endpoint = f"https://rfid-library.onrender.com/api/{key}/{old_ip}"
+                response = requests.put(
+                    endpoint,
+                    json={"name": name, "readerIp": ip},
+                    headers={"Content-Type": "application/json"}
+                )
+                log_message(f"Updated {box_type} {ip} on server - Status: {response.status_code}")
+            except Exception as e:
+                log_message(f"Error updating {box_type} {ip} on server: {str(e)}")
         else:
             messagebox.showwarning("Input Error", "Both Name and IP are required.")
 
