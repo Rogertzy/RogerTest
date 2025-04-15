@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 // EPC schema definition
-const EPCSchema = new mongoose.Schema({
+const epcSchema = new mongoose.Schema({
     epc: { type: String, required: true, unique: true }, // EPC must be unique and required
     title: { type: String, required: true }, // Book title is required
     author: { type: [String], required: true }, // Author is an array of strings and required
