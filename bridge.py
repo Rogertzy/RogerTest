@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, simpledialog
 import json
 import socket
 import threading
@@ -10,8 +10,7 @@ import re
 
 # Configuration
 CONFIG_FILE = "rfid_config.json"
-RENDER_URL = "https://rfid-library.onrender.com//api/rfid-update"
-CONNECTION_URL = "https://rfid-library.onrender.com//api/connection-status"
+RENDER_URL = "https://comp-fyp.onrender.com/api/rfid-update"  # Updated Render URL
 LISTEN_PORT = 5000
 
 try:
@@ -83,11 +82,11 @@ def check_stale_epcs():
     now = datetime.now().timestamp()
     for ip, epcs in list(detected_epcs.items()):
         if not isinstance(epcs, dict):
-            log_message(f"Warning: Invalid epcs for IP {ip}: {epcs}")
+            print(f"Warning: Skipping invalid epcs for IP {ip}: {epcs}")
             continue
         to_remove = []
         for epc, data in epcs.items():
-            if epc == "status" or epc == "log" or not isinstance(data, dict) or "last_seen" not in data:
+            if epc == "status" or not isinstance(data, dict) or "last_seen" not in data:
                 continue
             if now - data["last_seen"] > 5:
                 to_remove.append(epc)
@@ -96,7 +95,7 @@ def check_stale_epcs():
                     send_to_render(ip, epc, get_item_type(ip), detected=False)
         for epc in to_remove:
             del epcs[epc]
-        if len(epcs) <= 2 and all(k in ['status', 'log'] for k in epcs):
+        if len(epcs) == 1 and "status" in epcs:
             update_status(ip, 'grey')
 
 def periodic_check_stale_epcs():
@@ -170,12 +169,14 @@ def save_config():
         json.dump(config, f, indent=4)
 
 def validate_ip(ip):
+    """Validate if the input is a valid IP address."""
     pattern = re.compile(r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
     if not pattern.match(ip):
         return False
     return all(0 <= int(part) <= 255 for part in ip.split("."))
 
 def is_ip_in_use(ip):
+    """Check if the IP is already used in shelves or return boxes."""
     all_ips = [item["ip"] for item in config["shelves"] + config["return_boxes"]]
     return ip in all_ips
 
@@ -208,7 +209,7 @@ def add_box(box_type):
         elif not validate_ip(ip):
             messagebox.showwarning("Input Error", "Invalid IP address format.")
         elif is_ip_in_use(ip):
-            messagebox.showwarning("Input Error", f"IP address {ip} is already in use.")
+            messagebox.showwarning("Input Error", f"IP address {ip} is already in use by another bookshelf or return box.")
         else:
             config_key = "shelves" if box_type == "shelf" else "return_boxes"
             api_key = "shelves" if box_type == "shelf" else "return-boxes"
@@ -218,7 +219,7 @@ def add_box(box_type):
             dialog.destroy()
             try:
                 response = requests.post(
-                    f"https://rfid-library.onrender.com//api/{api_key}",
+                    f"https://comp-fyp.onrender.com/api/{api_key}",  # Updated Render URL
                     json={"name": name, "readerIp": ip},
                     headers={"Content-Type": "application/json"},
                     timeout=5
@@ -226,7 +227,7 @@ def add_box(box_type):
                 if response.status_code in (200, 201):
                     log_message(f"Added {box_type} {name} ({ip}) to server - Status: {response.status_code}")
                 else:
-                    log_message(f"Failed to add {box_type} {name} ({ip}) to server - Status: {response.status_code} - Response: {response.text}")
+                    log_message(f"Warning: Failed to add {box_type} {name} ({ip}) to server - Status: {response.status_code}")
             except Exception as e:
                 log_message(f"Error registering {box_type} {ip} with server: {str(e)}")
 
@@ -274,25 +275,27 @@ def edit_item(box_type, idx, item):
         elif not validate_ip(ip):
             messagebox.showwarning("Input Error", "Invalid IP address format.")
         elif ip != item["ip"] and is_ip_in_use(ip):
-            messagebox.showwarning("Input Error", f"IP address {ip} is already in use.")
+            messagebox.showwarning("Input Error", f"IP address {ip} is already in use by another bookshelf or return box.")
         else:
             config_key = "shelves" if box_type == "shelf" else "return_boxes"
             api_key = "shelves" if box_type == "shelf" else "return-boxes"
             old_ip = item["ip"]
             old_name = item["name"]
+            
             config[config_key][idx] = {"name": name, "ip": ip}
             save_config()
             update_lists()
             dialog.destroy()
+            
             try:
-                if old_ip != ip:
-                    delete_endpoint = f"https://rfid-library.onrender.com//api/{api_key}/{old_ip}"
-                    delete_response = requests.delete(delete_endpoint, timeout=5)
-                    if delete_response.status_code in (200, 204, 404):
-                        log_message(f"Deleted old {box_type} {old_ip} from server - Status: {delete_response.status_code}")
-                    else:
-                        log_message(f"Failed to delete old {box_type} {old_ip} - Status: {delete_response.status_code} - Response: {delete_response.text}")
-                add_endpoint = f"https://rfid-library.onrender.com//api/{api_key}"
+                delete_endpoint = f"https://comp-fyp.onrender.com/api/{api_key}/{old_ip}"  # Updated Render URL
+                delete_response = requests.delete(delete_endpoint)
+                if delete_response.status_code in (200, 204, 404):
+                    log_message(f"Deleted old {box_type} {old_ip} from server - Status: {delete_response.status_code}")
+                else:
+                    log_message(f"Warning: Failed to delete old {box_type} {old_ip} from server - Status: {delete_response.status_code}")
+                
+                add_endpoint = f"https://comp-fyp.onrender.com/api/{api_key}"  # Updated Render URL
                 add_response = requests.post(
                     add_endpoint,
                     json={"name": name, "readerIp": ip},
@@ -300,9 +303,10 @@ def edit_item(box_type, idx, item):
                     timeout=5
                 )
                 if add_response.status_code in (200, 201):
-                    log_message(f"Updated {box_type} to {name} ({ip}) on server")
+                    log_message(f"Updated {box_type} from '{old_name}' ({old_ip}) to '{name}' ({ip}) on server")
                 else:
-                    log_message(f"Failed to update {box_type} {ip} - Status: {add_response.status_code} - Response: {add_response.text}")
+                    log_message(f"Warning: Failed to update {box_type} {ip} on server - Status: {add_response.status_code}")
+                
                 if old_ip != ip and old_ip in detected_epcs:
                     detected_epcs[ip] = detected_epcs.pop(old_ip)
                     update_status(ip, detected_epcs[ip].get('status', 'grey'))
@@ -320,7 +324,7 @@ def remove_selected():
                 save_config()
                 update_lists()
                 try:
-                    response = requests.delete(f"https://rfid-library.onrender.com//api/shelves/{selected_ip}", timeout=5)
+                    response = requests.delete(f"https://comp-fyp.onrender.com/api/shelves/{selected_ip}")  # Updated Render URL
                     log_message(f"Deleted shelf {selected_ip} from server - Status: {response.status_code}")
                     if selected_ip in detected_epcs:
                         del detected_epcs[selected_ip]
@@ -333,15 +337,13 @@ def remove_selected():
                 save_config()
                 update_lists()
                 try:
-                    response = requests.delete(f"https://rfid-library.onrender.com//api/return-boxes/{selected_ip}", timeout=5)
+                    response = requests.delete(f"https://comp-fyp.onrender.com/api/return-boxes/{selected_ip}")  # Updated Render URL
                     log_message(f"Deleted return box {selected_ip} from server - Status: {response.status_code}")
                     if selected_ip in detected_epcs:
                         del detected_epcs[selected_ip]
                 except Exception as e:
                     log_message(f"Error deleting return box {selected_ip} from server: {str(e)}")
                 return
-    else:
-        messagebox.showwarning("Selection Error", "Please select an item to remove.")
 
 def get_selected_ip():
     for ip, widgets in status_widgets.items():
@@ -373,7 +375,7 @@ def show_item_log(ip):
 def show_item_log_window(ip):
     item_name = get_item_name(ip)
     log_window = tk.Toplevel(root)
-    log_window.title(f"{item_name}: {ip}")
+    log_window.title(f"{item_name}:{ip}")
     log_window.geometry("400x300")
     log_window.transient(root)
     log_window.grab_set()
@@ -456,9 +458,10 @@ def tcp_server():
 
 def handle_client(client, ip):
     box_type = get_item_type(ip)
+    
     if not box_type:
         if ip not in notified_ips:
-            log_message(f"Unknown RFID reader connected from {ip}")
+            log_message(f"(detect IP {ip} can be connect)")
             notified_ips.add(ip)
         client.close()
         return
@@ -486,49 +489,46 @@ def handle_client(client, ip):
                     detected_epcs[ip][epc]["last_seen"] = now
         except Exception as e:
             log_message(f"Error handling client {ip}: {str(e)}", ip)
+            update_status(ip, 'red')
             break
 
     now = datetime.now().timestamp()
     for epc in list(detected_epcs[ip].keys()):
-        if epc not in ['status', 'log']:
-            if now - detected_epcs[ip][epc]["last_seen"] > 5:
-                if detected_epcs[ip][epc]["sent"]:
-                    log_message(f"EPC '{epc}' no longer detected by {box_type} reader {ip}", ip)
-                    send_to_render(ip, epc, box_type, detected=False)
-                del detected_epcs[ip][epc]
-    if len(detected_epcs[ip]) <= 2 and all(k in ['status', 'log'] for k in detected_epcs[ip]):
+        if epc != "status" and now - detected_epcs[ip][epc]["last_seen"] > 5:
+            if detected_epcs[ip][epc]["sent"]:
+                log_message(f"EPC '{epc}' no longer detected by {box_type} reader {ip}", ip)
+                send_to_render(ip, epc, box_type, detected=False)
+            del detected_epcs[ip][epc]
+    if len(detected_epcs[ip]) == 1 and "status" in detected_epcs[ip]:
         update_status(ip, 'grey')
-        send_connection_status(ip, False)
 
+    send_connection_status(ip, False)
     client.close()
 
 def send_to_render(ip, epc, box_type, detected=True, retries=3):
     for attempt in range(retries):
         try:
-            response = requests.post(
-                RENDER_URL,
-                json={"readerIp": ip, "epc": epc, "type": box_type, "detected": detected},
-                headers={"Content-Type": "application/json"},
-                timeout=5
-            )
-            log_message(f"EPC '{epc}' {'forwarded to' if detected else 'removed from'} server from {ip} - Status: {response.status_code}", ip)
-            if response.status_code == 200:
-                return
-            log_message(f"Unexpected response for EPC '{epc}': {response.text}", ip)
+            response = requests.post(RENDER_URL, json={
+                "readerIp": ip,
+                "epc": epc,
+                "type": box_type,
+                "detected": detected
+            }, headers={"Content-Type": "application/json"}, timeout=5)
+            log_message(f"EPC '{epc}' {'forwarded to' if detected else 'removed from'} Render from {ip} - Status: {response.status_code}", ip)
+            return
         except Exception as e:
-            log_message(f"Attempt {attempt + 1} failed for EPC '{epc}' from {ip}: {str(e)}", ip)
+            log_message(f"Attempt {attempt + 1} failed for EPC '{epc}': {str(e)}", ip)
             if attempt < retries - 1:
                 time.sleep(2)
-    log_message(f"Failed to send EPC '{epc}' from {ip} after {retries} attempts", ip)
+            else:
+                log_message(f"Failed to send EPC '{epc}' after {retries} attempts", ip)
 
 def send_connection_status(ip, connected):
     try:
-        response = requests.post(
-            CONNECTION_URL,
-            json={"readerIp": ip, "connected": connected},
-            headers={"Content-Type": "application/json"},
-            timeout=5
-        )
+        response = requests.post("https://comp-fyp.onrender.com/api/connection-status", json={  # Updated Render URL
+            "readerIp": ip,
+            "connected": connected
+        }, headers={"Content-Type": "application/json"})
         log_message(f"Sent connection status for {ip}: {'connected' if connected else 'disconnected'} - Status: {response.status_code}", ip)
     except Exception as e:
         log_message(f"Error sending connection status for {ip}: {str(e)}", ip)
