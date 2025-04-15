@@ -8,7 +8,7 @@ const ReturnBox = require('./models/returnBoxSchema');
 app.use(express.static('public'));
 app.use(express.json());
 
-const mongoUri = process.env.MONGO_URI; // Removed hardcoded URI
+const mongoUri = process.env.MONGO_URI || 'mongodb+srv://Admin:admin@library.8bgvj.mongodb.net/bookManagement?retryWrites=true&w=majority&appName=Library';
 if (!mongoUri) {
   console.error('MONGO_URI environment variable is not set');
   process.exit(1);
