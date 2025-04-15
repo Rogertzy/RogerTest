@@ -1,7 +1,9 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const app = express();
-const { Epc, Shelf, ReturnBox } = require('./models/epcSchema');
+const Epc = require('./models/epcSchema');
+const Shelf = require('./models/shelfSchema');
+const ReturnBox = require('./models/returnBoxSchema');
 
 app.use(express.static('public'));
 app.use(express.json());
