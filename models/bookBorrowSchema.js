@@ -40,7 +40,7 @@ const borrowedCopySchema = new mongoose.Schema({
         type: Date,
         default: null, // Set to null when the book is not borrowed
     },
-    epc: {
+    EPC: {
         type: String, // EPC number from the RFID tag
     },
     status: {

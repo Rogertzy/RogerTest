@@ -1,7 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const app = express();
-const Epc = require('./models/epcSchema');
+const EPC = require('./models/epcSchema');
 const Shelf = require('./models/shelfSchema');
 const ReturnBox = require('./models/returnBoxSchema');
 
@@ -19,102 +19,102 @@ mongoose.connect(mongoUri, {
     process.exit(1);
   });
 
-  const detectedEpcs = { shelf: new Map(), returnBox: new Map() };
+  const detectedEPCs = { shelf: new Map(), returnBox: new Map() };
   const connectionStatus = new Map();
   
-  async function processShelfDetection(epc, readerIp) {
+  async function processShelfDetection(EPC, readerIp) {
     try {
-      const existingEpc = await Epc.findOne({ epc });
+      const existingEPC = await EPC.findOne({ EPC });
       const shelf = await Shelf.findOne({ readerIp });
       if (!shelf) throw new Error(`Shelf with IP ${readerIp} not found`);
-      const logMessage = `${new Date().toLocaleTimeString()} - EPC '${epc}' detected by shelf reader ${readerIp}`;
-      if (existingEpc) {
-        if (existingEpc.status !== 'in library') {
-          existingEpc.status = 'in library';
-          existingEpc.readerIp = readerIp;
-          existingEpc.timestamp = Date.now();
-          existingEpc.logs = existingEpc.logs || [];
-          existingEpc.logs.push({ message: logMessage, timestamp: Date.now() });
-          await existingEpc.save();
-          console.log(`EPC '${epc}' status changed to 'in library'`);
+      const logMessage = `${new Date().toLocaleTimeString()} - EPC '${EPC}' detected by shelf reader ${readerIp}`;
+      if (existingEPC) {
+        if (existingEPC.status !== 'in library') {
+          existingEPC.status = 'in library';
+          existingEPC.readerIp = readerIp;
+          existingEPC.timestamp = Date.now();
+          existingEPC.logs = existingEPC.logs || [];
+          existingEPC.logs.push({ message: logMessage, timestamp: Date.now() });
+          await existingEPC.save();
+          console.log(`EPC '${EPC}' status changed to 'in library'`);
         } else {
-          existingEpc.readerIp = readerIp;
-          existingEpc.logs = existingEpc.logs || [];
-          existingEpc.logs.push({ message: logMessage, timestamp: Date.now() });
-          await existingEpc.save();
+          existingEPC.readerIp = readerIp;
+          existingEPC.logs = existingEPC.logs || [];
+          existingEPC.logs.push({ message: logMessage, timestamp: Date.now() });
+          await existingEPC.save();
         }
       } else {
-        const newEpc = new Epc({
-          epc, title: 'Unknown Title', author: ['Unknown Author'], status: 'in library',
+        const newEPC = new EPC({
+          EPC, title: 'Unknown Title', author: ['Unknown Author'], status: 'in library',
           readerIp, timestamp: Date.now(), logs: [{ message: logMessage, timestamp: Date.now() }]
         });
-        await newEpc.save();
-        console.log(`New EPC '${epc}' added to shelf`);
+        await newEPC.save();
+        console.log(`New EPC '${EPC}' added to shelf`);
       }
     } catch (error) {
-      console.error(`Error processing shelf EPC '${epc}':`, error.message);
+      console.error(`Error processing shelf EPC '${EPC}':`, error.message);
       throw error;
     }
   }
   
-  async function processReturn(epc, readerIp) {
+  async function processReturn(EPC, readerIp) {
     try {
-      const existingEpc = await Epc.findOne({ epc });
+      const existingEPC = await EPC.findOne({ EPC });
       const returnBox = await ReturnBox.findOne({ readerIp });
       if (!returnBox) throw new Error(`Return box with IP ${readerIp} not found`);
-      const logMessage = `${new Date().toLocaleTimeString()} - EPC '${epc}' detected by return box reader ${readerIp}`;
-      if (existingEpc) {
-        if (existingEpc.status !== 'in return box') {
-          existingEpc.status = 'in return box';
-          existingEpc.readerIp = readerIp;
-          existingEpc.timestamp = Date.now();
-          existingEpc.logs = existingEpc.logs || [];
-          existingEpc.logs.push({ message: logMessage, timestamp: Date.now() });
-          await existingEpc.save();
-          console.log(`EPC '${epc}' status changed to 'in return box'`);
+      const logMessage = `${new Date().toLocaleTimeString()} - EPC '${EPC}' detected by return box reader ${readerIp}`;
+      if (existingEPC) {
+        if (existingEPC.status !== 'in return box') {
+          existingEPC.status = 'in return box';
+          existingEPC.readerIp = readerIp;
+          existingEPC.timestamp = Date.now();
+          existingEPC.logs = existingEPC.logs || [];
+          existingEPC.logs.push({ message: logMessage, timestamp: Date.now() });
+          await existingEPC.save();
+          console.log(`EPC '${EPC}' status changed to 'in return box'`);
         } else {
-          existingEpc.readerIp = readerIp;
-          existingEpc.logs = existingEpc.logs || [];
-          existingEpc.logs.push({ message: logMessage, timestamp: Date.now() });
-          await existingEpc.save();
+          existingEPC.readerIp = readerIp;
+          existingEPC.logs = existingEPC.logs || [];
+          existingEPC.logs.push({ message: logMessage, timestamp: Date.now() });
+          await existingEPC.save();
         }
       } else {
-        const newEpc = new Epc({
-          epc, title: 'Unknown Title', author: ['Unknown Author'], status: 'in return box',
+        const newEPC = new EPC({
+          EPC, title: 'Unknown Title', author: ['Unknown Author'], status: 'in return box',
           readerIp, timestamp: Date.now(), logs: [{ message: logMessage, timestamp: Date.now() }]
         });
-        await newEpc.save();
-        console.log(`New EPC '${epc}' added to return box`);
+        await newEPC.save();
+        console.log(`New EPC '${EPC}' added to return box`);
       }
     } catch (error) {
-      console.error(`Error processing return box EPC '${epc}':`, error.message);
+      console.error(`Error processing return box EPC '${EPC}':`, error.message);
       throw error;
     }
   }
   
   app.post('/api/rfid-update',  async (req, res) => {
-    const { readerIp, epc, type, detected = true } = req.body;
-    if (!readerIp || !epc || !type) return res.status(400).json({ error: 'Missing fields' });
-    const store = type === 'shelf' ? detectedEpcs.shelf : detectedEpcs.returnBox;
+    const { readerIp, EPC, type, detected = true } = req.body;
+    if (!readerIp || !EPC || !type) return res.status(400).json({ error: 'Missing fields' });
+    const store = type === 'shelf' ? detectedEPCs.shelf : detectedEPCs.returnBox;
     try {
       if (detected) {
-        console.log(`EPC '${epc}' detected by ${type} reader ${readerIp}`);
-        if (type === 'shelf') await processShelfDetection(epc, readerIp);
-        else if (type === 'return_box') await processReturn(epc, readerIp);
-        store.set(epc, { timestamp: Date.now(), readerIp });
+        console.log(`EPC '${EPC}' detected by ${type} reader ${readerIp}`);
+        if (type === 'shelf') await processShelfDetection(EPC, readerIp);
+        else if (type === 'return_box') await processReturn(EPC, readerIp);
+        store.set(EPC, { timestamp: Date.now(), readerIp });
       } else {
-        console.log(`EPC '${epc}' no longer detected by ${type} reader ${readerIp}`);
-        store.delete(epc);
-        const existingEpc = await Epc.findOne({ epc });
-        if (existingEpc && existingEpc.status !== 'borrowed') {
-          const logMessage = `${new Date().toLocaleTimeString()} - EPC '${epc}' no longer detected by ${type} reader ${readerIp}`;
-          existingEpc.status = 'borrowed';
-          existingEpc.readerIp = null;
-          existingEpc.timestamp = Date.now();
-          existingEpc.logs = existingEpc.logs || [];
-          existingEpc.logs.push({ message: logMessage, timestamp: Date.now() });
-          await existingEpc.save();
-          console.log(`EPC '${epc}' status changed to 'borrowed'`);
+        console.log(`EPC '${EPC}' no longer detected by ${type} reader ${readerIp}`);
+        store.delete(EPC);
+        const existingEPC = await EPC.findOne({ EPC });
+        if (existingEPC && existingEPC.status !== 'borrowed') {
+          const logMessage = `${new Date().toLocaleTimeString()} - EPC '${EPC}' no longer detected by ${type} reader ${readerIp}`;
+          existingEPC.status = 'borrowed';
+          existingEPC.readerIp = null;
+          existingEPC.timestamp = Date.now();
+          existingEPC.logs = existingEPC.logs || [];
+          existingEPC.logs.push({ message: logMessage, timestamp: Date.now() });
+          await existingEPC.save();
+          console.log(`EPC '${EPC}' status changed to 'borrowed'`);
         }
       }
       res.status(200).json({ message: 'EPC processed' });
@@ -133,24 +133,24 @@ mongoose.connect(mongoUri, {
   
   app.get('/api/rfid-readers',  async (req, res) => {
     try {
-      const allEpcs = await Epc.find().lean();
+      const allEPCs = await EPC.find().lean();
       const shelves = await Shelf.find().lean();
       const returnBoxes = await ReturnBox.find().lean();
   
-      const shelfEpcs = Array.from(detectedEpcs.shelf.entries()).map(([epc, { timestamp, readerIp }]) => {
-        const dbEpc = allEpcs.find(e => e.epc === epc) || {};
+      const shelfEPCs = Array.from(detectedEPCs.shelf.entries()).map(([EPC, { timestamp, readerIp }]) => {
+        const dbEPC = allEPCs.find(e => e.EPC === EPC) || {};
         const shelf = shelves.find(s => s.readerIp === readerIp) || { name: 'Unknown' };
-        return { epc, timestamp, readerIp, shelfName: shelf.name, logs: dbEpc.logs || [], ...dbEpc };
+        return { EPC, timestamp, readerIp, shelfName: shelf.name, logs: dbEPC.logs || [], ...dbEPC };
       });
   
-      const returnBoxEpcs = Array.from(detectedEpcs.returnBox.entries()).map(([epc, { timestamp, readerIp }]) => {
-        const dbEpc = allEpcs.find(e => e.epc === epc) || {};
+      const returnBoxEPCs = Array.from(detectedEPCs.returnBox.entries()).map(([EPC, { timestamp, readerIp }]) => {
+        const dbEPC = allEPCs.find(e => e.EPC === EPC) || {};
         const returnBox = returnBoxes.find(r => r.readerIp === readerIp) || { name: 'Unknown' };
-        return { epc, timestamp, readerIp, returnBoxName: returnBox.name, logs: dbEpc.logs || [], ...dbEpc };
+        return { EPC, timestamp, readerIp, returnBoxName: returnBox.name, logs: dbEPC.logs || [], ...dbEPC };
       });
   
       const shelfReaders = shelves.map(shelf => {
-        const epcsForShelf = shelfEpcs.filter(epc => epc.readerIp === shelf.readerIp);
+        const epcsForShelf = shelfEPCs.filter(EPC => EPC.readerIp === shelf.readerIp);
         return {
           readerIp: shelf.readerIp,
           name: shelf.name,
@@ -160,7 +160,7 @@ mongoose.connect(mongoUri, {
       });
   
       const returnBoxReaders = returnBoxes.map(box => {
-        const epcsForBox = returnBoxEpcs.filter(epc => epc.readerIp === box.readerIp);
+        const epcsForBox = returnBoxEPCs.filter(EPC => EPC.readerIp === box.readerIp);
         return {
           readerIp: box.readerIp,
           name: box.name,
@@ -233,20 +233,20 @@ mongoose.connect(mongoUri, {
     }
   });
   
-  app.post('/api/epc',  async (req, res) => {
-    const { epc, title, author, status, industryIdentifier } = req.body;
-    if (!epc || !title || !author || !status) return res.status(400).json({ error: 'EPC, title, author, status required' });
+  app.post('/api/EPC',  async (req, res) => {
+    const { EPC, title, author, status, industryIdentifier } = req.body;
+    if (!EPC || !title || !author || !status) return res.status(400).json({ error: 'EPC, title, author, status required' });
     if (!['borrowed', 'in return box', 'in library'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
     try {
-      const existing = await Epc.findOne({ epc });
+      const existing = await EPC.findOne({ EPC });
       if (existing) return res.status(400).json({ error: 'EPC exists' });
-      const newEpc = new Epc({
-        epc, title, author, status, industryIdentifier: industryIdentifier || ['N/A'],
-        timestamp: Date.now(), logs: [{ message: `${new Date().toLocaleTimeString()} - EPC '${epc}' manually added`, timestamp: Date.now() }]
+      const newEPC = new EPC({
+        EPC, title, author, status, industryIdentifier: industryIdentifier || ['N/A'],
+        timestamp: Date.now(), logs: [{ message: `${new Date().toLocaleTimeString()} - EPC '${EPC}' manually added`, timestamp: Date.now() }]
       });
-      await newEpc.save();
-      console.log(`Added EPC '${epc}' with status '${status}'`);
-      res.status(201).json(newEpc);
+      await newEPC.save();
+      console.log(`Added EPC '${EPC}' with status '${status}'`);
+      res.status(201).json(newEPC);
     } catch (error) {
       console.error('Error adding EPC:', error.message);
       res.status(500).json({ error: 'Failed to add EPC' });

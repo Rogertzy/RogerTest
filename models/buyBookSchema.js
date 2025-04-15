@@ -57,7 +57,7 @@ const buyBookSchema = new mongoose.Schema({
             enum: bookStatusEnum, // Use the defined enum for statuses
             default: 'in library', // Default to 'in library'
         },
-        epc: {
+        EPC: {
             type: String, // EPC number from the RFID tag
         },
     }],

@@ -18,7 +18,7 @@ const loanDetailsSchema = new mongoose.Schema({
                     availability: { type: Boolean, default: true },
                     borrowedDate: { type: Date, default: null },
                     dueDate: { type: Date, default: null },
-                    epc: { type: String },
+                    EPC: { type: String },
                     status: { type: String, required: true, enum: ['borrowed', 'in return box', 'in library'], default: 'in library' },
                     borrowStatus: { type: Boolean, default: false },
                 },
