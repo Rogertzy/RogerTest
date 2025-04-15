@@ -1,11 +1,10 @@
+// models/returnBoxSchema.js
 const mongoose = require('mongoose');
 
-// ReturnBox schema definition
 const returnBoxSchema = new mongoose.Schema({
-    readerIp: { type: String, required: true, unique: true }, // Reader IP must be unique and required
-    name: { type: String, required: true }, // Return box name is required
-    connected: { type: Boolean, default: false } // Default state for connectivity
+    readerIp: { type: String, required: true, unique: true },
+    status: { type: String, default: 'inactive' },
+    lastSeen: { type: Date, default: Date.now }
 });
 
-// Export the ReturnBox model
 module.exports = mongoose.model('ReturnBox', returnBoxSchema);
