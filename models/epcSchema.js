@@ -15,7 +15,7 @@ const epcSchema = new mongoose.Schema({
       message: String,
       timestamp: { type: Number, default: Date.now }
     }], 
-    industryIdentifier: { type: [String], default: ['N/A'] },
+    industryIdentifier: { type: [String]},
 });
 
 // Export the EPC model
