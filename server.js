@@ -102,47 +102,55 @@ async function processReturn(epc, readerIp) {
 
 app.post('/api/rfid-update', async (req, res) => {
   const { readerIp, epc, type, detected = true } = req.body;
-  if (!readerIp || !epc || !type) return res.status(400).json({ error: 'Missing fields' });
+  if (!readerIp || !epc || !type) {
+    console.error('Missing fields:', { readerIp, epc, type });
+    return res.status(400).json({ error: 'Missing fields' });
+  }
+  if (!['shelf', 'return_box'].includes(type)) {
+    console.error('Invalid type:', type);
+    return res.status(400).json({ error: 'Invalid type' });
+  }
   const store = type === 'shelf' ? detectedEpcs.shelf : detectedEpcs.returnBox;
   try {
-      if (detected) {
-          console.log(`EPC '${epc}' detected by ${type} reader ${readerIp}`);
-          if (type === 'shelf') await processShelfDetection(epc, readerIp);
-          else if (type === 'return_box') await processReturn(epc, readerIp);
-          store.set(epc, { timestamp: Date.now(), readerIp });
-          // Store in MongoDB
-          await Detection.findOneAndUpdate(
-            { epc, readerIp, type },
-            { epc, readerIp, type, timestamp: Date.now() },
-            { upsert: true }
-          );
-      } else {
-          console.log(`EPC '${epc}' no longer detected by ${type} reader ${readerIp}`);
-          store.delete(epc);
-          await Detection.deleteOne({ epc, readerIp, type });
-          const existingEpc = await Epc.findOne({ epc });
-          if (existingEpc && existingEpc.status === 'in library') {
-              const lastSeen = existingEpc.timestamp;
-              const now = Date.now();
-              const timeDiff = now - lastSeen;
-              if (timeDiff > 300000) {
-                  existingEpc.status = 'borrowed';
-                  existingEpc.readerIp = null;
-                  existingEpc.timestamp = now;
-                  existingEpc.logs = existingEpc.logs || [];
-                  existingEpc.logs.push({ 
-                      message: `EPC '${epc}' status changed to 'borrowed' after not being detected for 5 minutes`, 
-                      timestamp: now 
-                  });
-                  await existingEpc.save();
-                  console.log(`EPC '${epc}' status changed to 'borrowed' after not being detected for 5 minutes`);
-              }
-          }
+    if (detected) {
+      console.log(`Processing EPC '${epc}' for ${type} reader ${readerIp}`);
+      if (type === 'shelf') await processShelfDetection(epc, readerIp);
+      else await processReturn(epc, readerIp);
+      store.set(epc, { timestamp: Date.now(), readerIp });
+      const detection = await Detection.findOneAndUpdate(
+        { epc, readerIp, type },
+        { epc, readerIp, type, timestamp: Date.now() },
+        { upsert: true, new: true }
+      );
+      console.log('Detection saved:', detection);
+    } else {
+      console.log(`Removing EPC '${epc}' from ${type} reader ${readerIp}`);
+      store.delete(epc);
+      const deleted = await Detection.deleteOne({ epc, readerIp, type });
+      console.log('Detection deleted:', deleted);
+      const existingEpc = await Epc.findOne({ epc });
+      if (existingEpc && existingEpc.status === 'in library') {
+        const lastSeen = existingEpc.timestamp;
+        const now = Date.now();
+        const timeDiff = now - lastSeen;
+        if (timeDiff > 300000) {
+          existingEpc.status = 'borrowed';
+          existingEpc.readerIp = null;
+          existingEpc.timestamp = now;
+          existingEpc.logs = existingEpc.logs || [];
+          existingEpc.logs.push({
+            message: `EPC '${epc}' status changed to 'borrowed' after not being detected for 5 minutes`,
+            timestamp: now,
+          });
+          await existingEpc.save();
+          console.log(`EPC '${epc}' status changed to 'borrowed'`);
+        }
       }
-      res.status(200).json({ message: 'EPC processed' });
+    }
+    res.status(200).json({ message: 'EPC processed' });
   } catch (error) {
-      console.error('Error processing EPC:', error.message);
-      res.status(500).json({ error: error.message || 'Internal server error' });
+    console.error(`Error processing EPC '${epc}':`, error.message);
+    res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
