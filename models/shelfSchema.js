@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 
 const shelfSchema = new mongoose.Schema({
     readerIp: { type: String, required: true, unique: true },
+    name: { type: String, required: true, default: 'Unnamed Shelf' }, // Added name field
     status: { type: String, default: 'inactive' },
     lastSeen: { type: Date, default: Date.now }
 });
