@@ -19,7 +19,7 @@ mongoose.connect(mongoUri, {
     process.exit(1);
   });
 
-  const detectedEPCs = { shelf: new Map(), returnBox: new Map() };
+  const detectedepcs = { shelf: new Map(), returnBox: new Map() };
   const connectionStatus = new Map();
   
   async function processShelfDetection(EPC, readerIp) {
@@ -95,7 +95,7 @@ mongoose.connect(mongoUri, {
   app.post('/api/rfid-update',  async (req, res) => {
     const { readerIp, EPC, type, detected = true } = req.body;
     if (!readerIp || !EPC || !type) return res.status(400).json({ error: 'Missing fields' });
-    const store = type === 'shelf' ? detectedEPCs.shelf : detectedEPCs.returnBox;
+    const store = type === 'shelf' ? detectedepcs.shelf : detectedepcs.returnBox;
     try {
       if (detected) {
         console.log(`EPC '${EPC}' detected by ${type} reader ${readerIp}`);
@@ -133,24 +133,24 @@ mongoose.connect(mongoUri, {
   
   app.get('/api/rfid-readers',  async (req, res) => {
     try {
-      const allEPCs = await EPC.find().lean();
+      const allepcs = await EPC.find().lean();
       const shelves = await Shelf.find().lean();
       const returnBoxes = await ReturnBox.find().lean();
   
-      const shelfEPCs = Array.from(detectedEPCs.shelf.entries()).map(([EPC, { timestamp, readerIp }]) => {
-        const dbEPC = allEPCs.find(e => e.EPC === EPC) || {};
+      const shelfepcs = Array.from(detectedepcs.shelf.entries()).map(([EPC, { timestamp, readerIp }]) => {
+        const dbEPC = allepcs.find(e => e.EPC === EPC) || {};
         const shelf = shelves.find(s => s.readerIp === readerIp) || { name: 'Unknown' };
         return { EPC, timestamp, readerIp, shelfName: shelf.name, logs: dbEPC.logs || [], ...dbEPC };
       });
   
-      const returnBoxEPCs = Array.from(detectedEPCs.returnBox.entries()).map(([EPC, { timestamp, readerIp }]) => {
-        const dbEPC = allEPCs.find(e => e.EPC === EPC) || {};
+      const returnBoxepcs = Array.from(detectedepcs.returnBox.entries()).map(([EPC, { timestamp, readerIp }]) => {
+        const dbEPC = allepcs.find(e => e.EPC === EPC) || {};
         const returnBox = returnBoxes.find(r => r.readerIp === readerIp) || { name: 'Unknown' };
         return { EPC, timestamp, readerIp, returnBoxName: returnBox.name, logs: dbEPC.logs || [], ...dbEPC };
       });
   
       const shelfReaders = shelves.map(shelf => {
-        const epcsForShelf = shelfEPCs.filter(EPC => EPC.readerIp === shelf.readerIp);
+        const epcsForShelf = shelfepcs.filter(EPC => EPC.readerIp === shelf.readerIp);
         return {
           readerIp: shelf.readerIp,
           name: shelf.name,
@@ -160,7 +160,7 @@ mongoose.connect(mongoUri, {
       });
   
       const returnBoxReaders = returnBoxes.map(box => {
-        const epcsForBox = returnBoxEPCs.filter(EPC => EPC.readerIp === box.readerIp);
+        const epcsForBox = returnBoxepcs.filter(EPC => EPC.readerIp === box.readerIp);
         return {
           readerIp: box.readerIp,
           name: box.name,
