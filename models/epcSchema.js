@@ -3,8 +3,8 @@ const mongoose = require('mongoose');
 // EPC schema definition
 const epcSchema = new mongoose.Schema({
     epc: { type: String, required: true, unique: true }, // EPC must be unique and required
-    title: { type: String, required: true, default: 'Unknown Title' }, // Book title is required
-    author: { type: [String], required: true, default: ['Unknown Author'] }, // Author is an array of strings and required
+    title: { type: String, default: 'Unknown Title', required: true }, // Book title is required
+    author: { type: [String], default: ['Unknown Author'], required: true }, // Author is an array of strings and required
     status: { 
         type: String, 
         enum: ['borrowed', 'in return box', 'in library'], // Restrict to these values
