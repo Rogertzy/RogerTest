@@ -155,6 +155,13 @@ def update_lists():
     shelves_text.config(state="disabled")
     return_boxes_text.config(state="disabled")
 
+def periodic_update_ui():
+    while True:
+        update_lists()
+        time.sleep(10)  # Update every 10 seconds
+
+threading.Thread(target=periodic_update_ui, daemon=True).start()
+
 def update_status(ip, status):
     if ip not in detected_epcs:
         detected_epcs[ip] = {}
@@ -458,6 +465,7 @@ def tcp_server():
         except:
             break
 
+# bridge.py
 def handle_client(client, ip):
     box_type = get_item_type(ip)
     
@@ -489,6 +497,8 @@ def handle_client(client, ip):
                     detected_epcs[ip][epc]["sent"] = True
                 else:
                     detected_epcs[ip][epc]["last_seen"] = now
+            else:
+                log_message(f"Failed to extract EPC from data received from {ip}", ip)
         except Exception as e:
             log_message(f"Error handling client {ip}: {str(e)}", ip)
             update_status(ip, 'red')
