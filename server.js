@@ -204,7 +204,7 @@ app.get('/api/readers', ensureDbConnected, async (req, res) => {
   }
 });
 
-app.post('/api/shelves′, ensureDbConnected, async (req, res) => {
+app.post('/api/shelves', ensureDbConnected, async (req, res) => {
   const { name, readerIp } = req.body;
   if (!name || !readerIp) return res.status(400).json({ error: 'Name and readerIp required' });
   try {
