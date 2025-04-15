@@ -31,6 +31,15 @@ const ensureDbConnected = (req, res, next) => {
 const detectedEpcs = { shelf: new Map(), returnBox: new Map() };
 const connectionStatus = new Map();
 
+// New schema for temporary EPC detections
+const DetectionSchema = new mongoose.Schema({
+  epc: { type: String, required: true },
+  readerIp: { type: String, required: true },
+  type: { type: String, enum: ['shelf', 'returnBox'], required: true },
+  timestamp: { type: Date, default: Date.now }
+});
+const Detection = mongoose.model('Detection', DetectionSchema);
+
 async function processShelfDetection(epc, readerIp) {
   try {
       const existingEpc = await Epc.findOne({ epc });
@@ -101,9 +110,16 @@ app.post('/api/rfid-update', async (req, res) => {
           if (type === 'shelf') await processShelfDetection(epc, readerIp);
           else if (type === 'return_box') await processReturn(epc, readerIp);
           store.set(epc, { timestamp: Date.now(), readerIp });
+          // Store in MongoDB
+          await Detection.findOneAndUpdate(
+            { epc, readerIp, type },
+            { epc, readerIp, type, timestamp: Date.now() },
+            { upsert: true }
+          );
       } else {
           console.log(`EPC '${epc}' no longer detected by ${type} reader ${readerIp}`);
           store.delete(epc);
+          await Detection.deleteOne({ epc, readerIp, type });
           const existingEpc = await Epc.findOne({ epc });
           if (existingEpc && existingEpc.status === 'in library') {
               const lastSeen = existingEpc.timestamp;
@@ -142,9 +158,13 @@ app.get('/api/rfid-readers', ensureDbConnected, async (req, res) => {
     const allEpcs = await Epc.find().lean();
     const shelves = await Shelf.find().lean();
     const returnBoxes = await ReturnBox.find().lean();
-
-    console.log('Shelves:', shelves); // Debug names
-    console.log('ReturnBoxes:', returnBoxes); // Debug names
+    
+    // Load detections from MongoDB
+    const detections = await Detection.find().lean();
+    detections.forEach(d => {
+      const store = d.type === 'shelf' ? detectedEpcs.shelf : detectedEpcs.returnBox;
+      store.set(d.epc, { timestamp: d.timestamp, readerIp: d.readerIp });
+    });
 
     const shelfEpcs = Array.from(detectedEpcs.shelf.entries()).map(([epc, { timestamp, readerIp }]) => {
       const dbEpc = allEpcs.find(e => e.epc === epc) || {};
@@ -178,6 +198,9 @@ app.get('/api/rfid-readers', ensureDbConnected, async (req, res) => {
       };
     });
 
+    console.log('Shelves:', shelfReaders);
+    console.log('ReturnBoxes:', returnBoxReaders);
+
     res.json({
       shelves: shelfReaders,
       returnBoxes: returnBoxReaders,
@@ -185,22 +208,6 @@ app.get('/api/rfid-readers', ensureDbConnected, async (req, res) => {
   } catch (error) {
     console.error('Error fetching readers:', error.message);
     res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Add /api/readers for compatibility
-app.get('/api/readers', ensureDbConnected, async (req, res) => {
-  try {
-    const shelves = await Shelf.find({}).select('readerIp name status lastSeen').lean();
-    const returnBoxes = await ReturnBox.find({}).select('readerIp name status lastSeen').lean();
-    const readers = [
-      ...shelves.map(s => ({ ...s, type: 'shelf' })),
-      ...returnBoxes.map(rb => ({ ...rb, type: 'returnBox' }))
-    ];
-    res.status(200).json(readers);
-  } catch (error) {
-    console.error('Error fetching readers:', error.message);
-    res.status(500).json({ error: 'Failed to fetch readers' });
   }
 });
 
