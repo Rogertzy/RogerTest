@@ -1,236 +1,281 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RFID Return Boxes</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f4f4f4;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        h1 {
-            color: #333;
-            margin-bottom: 20px;
-        }
-        .return-boxes {
-            width: 80%;
-            max-width: 1000px;
-            background-color: #8B4513;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-        }
-        .return-box {
-            background-color: #A0522D;
-            margin: 15px 0;
-            padding: 15px;
-            border-radius: 5px;
-            box-shadow: inset 0 2px 5px rgba(0,0,0,0.2);
-            cursor: pointer;
-        }
-        .shelf-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            color: white;
-            margin-bottom: 10px;
-        }
-        .shelf-header h2 {
-            margin: 0;
-            font-size: 18px;
-        }
-        .status {
-            font-size: 14px;
-            padding: 5px 10px;
-            border-radius: 3px;
-        }
-        .status-active {
-            background-color: green;
-        }
-        .status-inactive {
-            background-color: red;
-        }
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-            justify-content: center;
-            align-items: center;
-        }
-        .modal-content {
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 10px;
-            width: 80%;
-            max-width: 800px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            position: relative;
-        }
-        .close {
-            position: absolute;
-            top: 10px;
-            right: 20px;
-            font-size: 24px;
-            cursor: pointer;
-        }
-        .book-large {
-            background-color: #FFD700;
-            color: #333;
-            padding: 20px;
-            width: 200px;
-            text-align: center;
-            border-radius: 10px;
-            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
-            font-size: 16px;
-        }
-        .book-small {
-            background-color: #FFD700;
-            color: #333;
-            padding: 10px;
-            width: 100px;
-            text-align: center;
-            border-radius: 5px;
-            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
-            font-size: 12px;
-            opacity: 0.7;
-        }
-        .nav-button {
-            background-color: #333;
-            color: white;
-            border: none;
-            padding: 10px;
-            cursor: pointer;
-            font-size: 24px;
-            border-radius: 5px;
-        }
-        .nav-button:disabled {
-            background-color: #666;
-            cursor: not-allowed;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RFID Return Boxes</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f4f4f4;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 20px;
+    }
+    .return-boxes {
+      width: 80%;
+      max-width: 1000px;
+      background-color: #8B4513;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    }
+    .return-box {
+      background-color: #A0522D;
+      margin: 15px 0;
+      padding: 15px;
+      border-radius: 5px;
+      box-shadow: inset 0 2px 5px rgba(0,0,0,0.2);
+      cursor: pointer;
+      color: white;
+    }
+    .shelf-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .shelf-header h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+    .status {
+      font-size: 14px;
+      padding: 5px 10px;
+      border-radius: 3px;
+      color: white;
+    }
+    .status-active {
+      background-color: green;
+    }
+    .status-inactive {
+      background-color: red;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-content {
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      width: 80%;
+      max-width: 800px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+    }
+    .close {
+      position: absolute;
+      top: 10px;
+      right: 20px;
+      font-size: 24px;
+      cursor: pointer;
+      color: #333;
+    }
+    .book-large {
+      background-color: #FFD700;
+      color: #333;
+      padding: 20px;
+      width: 200px;
+      text-align: center;
+      border-radius: 10px;
+      box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+      font-size: 16px;
+    }
+    .book-small {
+      background-color: #FFD700;
+      color: #333;
+      padding: 10px;
+      width: 100px;
+      text-align: center;
+      border-radius: 5px;
+      box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+      font-size: 12px;
+      opacity: 0.7;
+    }
+    .nav-button {
+      background-color: #333;
+      color: white;
+      border: none;
+      padding: 10px;
+      cursor: pointer;
+      font-size: 24px;
+      border-radius: 5px;
+    }
+    .nav-button:disabled {
+      background-color: #666;
+      cursor: not-allowed;
+    }
+    p {
+      margin: 5px 0;
+    }
+  </style>
 </head>
 <body>
-    <h1>RFID Return Boxes</h1>
-    <div class="return-boxes" id="return-boxes"></div>
-    <div class="modal" id="book-modal">
-      <div class="modal-content">
-        <span class="close" onclick="closeModal()">×</span>
-        <button class="nav-button" id="prev-button" onclick="prevBook()"><</button>
-        <div class="book-small" id="prev-book"></div>
-        <div class="book-large" id="current-book"></div>
-        <div class="book-small" id="next-book"></div>
-        <button class="nav-button" id="next-button" onclick="nextBook()">></button>
-      </div>
+  <h1>RFID Return Boxes</h1>
+  <div class="return-boxes" id="return-boxes"></div>
+  <div class="modal" id="book-modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeModal()">×</span>
+      <button class="nav-button" id="prev-button" onclick="prevBook()">&lt;</button>
+      <div class="book-small" id="prev-book"></div>
+      <div class="book-large" id="current-book"></div>
+      <div class="book-small" id="next-book"></div>
+      <button class="nav-button" id="next-button" onclick="nextBook()">&gt;</button>
     </div>
-  
-    <script>
-      let selectedReaderIp = null;
-      let currentBooks = [];
-      let currentBookIndex = 0;
-  
-      async function fetchReturnBoxData() {
-        try {
-          const response = await fetch('/api/rfid-readers');
-          if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}`);
+  </div>
+
+  <script>
+    let selectedReaderIp = null;
+    let currentBooks = [];
+    let currentBookIndex = 0;
+
+    async function fetchReturnBoxData() {
+      try {
+        const response = await fetch('/api/rfid-readers');
+        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+        const data = await response.json();
+        console.log('Return box data:', JSON.stringify(data, null, 2));
+        updateReturnBoxes(data.returnBoxes || []);
+        if (selectedReaderIp) {
+          const box = data.returnBoxes.find(b => b.readerIp === selectedReaderIp);
+          currentBooks = box ? box.epcs : [];
+          console.log('Current books:', currentBooks);
+          if (currentBookIndex >= currentBooks.length) {
+            currentBookIndex = Math.max(0, currentBooks.length - 1);
           }
-          const data = await response.json();
-          console.log('Return box data:', JSON.stringify(data, null, 2));
-          updateReturnBoxes(data.returnBoxes || []);
-          if (selectedReaderIp) {
-            const box = data.returnBoxes.find(b => b.readerIp === selectedReaderIp);
-            currentBooks = box ? box.epcs : [];
-            console.log('Current books:', currentBooks);
-            if (currentBookIndex >= currentBooks.length) {
-              currentBookIndex = Math.max(0, currentBooks.length - 1);
-            }
-            const modal = document.getElementById('book-modal');
-            if (modal.style.display === 'flex') {
-              if (currentBooks.length === 0) {
-                document.getElementById('current-book').innerHTML = 'No books detected.';
-                document.getElementById('prev-book').innerHTML = '';
-                document.getElementById('next-book').innerHTML = '';
-                document.getElementById('prev-button').disabled = true;
-                document.getElementById('next-button').disabled = true;
-              } else {
-                updateModal();
-              }
+          const modal = document.getElementById('book-modal');
+          if (modal.style.display === 'flex') {
+            if (currentBooks.length === 0) {
+              document.getElementById('current-book').innerHTML = 'No books detected.';
+              document.getElementById('prev-book').innerHTML = '';
+              document.getElementById('next-book').innerHTML = '';
+              document.getElementById('prev-button').disabled = true;
+              document.getElementById('next-button').disabled = true;
+            } else {
+              updateModal();
             }
           }
-        } catch (error) {
-          console.error('Error fetching return box data:', error);
-          document.getElementById('return-boxes').innerHTML = `<p>Error loading return boxes: ${error.message}</p>`;
         }
+      } catch (error) {
+        console.error('Error fetching return box data:', error);
+        document.getElementById('return-boxes').innerHTML = `<p>Error loading return boxes: ${error.message}</p>`;
       }
-  
-      function updateReturnBoxes(returnBoxes) {
-        const container = document.getElementById('return-boxes');
-        const existingBoxes = new Set(
-          Array.from(container.children).map(child => child.id.replace('return-box-', ''))
-        );
-  
-        Array.from(container.children).forEach(child => {
-          const readerIp = child.id.replace('return-box-', '');
-          if (!returnBoxes.some(b => b.readerIp === readerIp)) {
-            container.removeChild(child);
-          }
-        });
-  
-        returnBoxes.forEach(box => {
-          console.log('Return box:', box.name, 'EPCs:', box.epcs.length);
-          let boxDiv = document.getElementById(`return-box-${box.readerIp}`);
-          if (!boxDiv) {
-            boxDiv = document.createElement('div');
-            boxDiv.className = 'return-box';
-            boxDiv.id = `return-box-${box.readerIp}`;
-            container.appendChild(boxDiv);
-          }
-          const statusClass = box.status === 'active' ? 'active' : 'inactive';
-          boxDiv.innerHTML = `
-            <div class="shelf-header">
-              <h2>${box.name || 'Unnamed Return Box'}</h2>
-              <span class="status status-${statusClass}">${box.status}</span>
-            </div>
-            <p>Books detected: ${box.epcs ? box.epcs.length : 0}</p>
-          `;
-          boxDiv.onclick = () => showBooks(box.readerIp, box.epcs);
-        });
-      }
-  
-      function showBooks(readerIp, books) {
-        selectedReaderIp = readerIp;
-        currentBooks = books || [];
-        currentBookIndex = 0;
-        console.log('Showing books for:', readerIp, currentBooks);
-        const modal = document.getElementById('book-modal');
-        modal.style.display = 'flex';
-        if (currentBooks.length === 0) {
-          document.getElementById('current-book').innerHTML = 'No books detected.';
-          document.getElementById('prev-book').innerHTML = '';
-          document.getElementById('next-book').innerHTML = '';
-          document.getElementById('prev-button').disabled = true;
-          document.getElementById('next-button').disabled = true;
-        } else {
-          updateModal();
+    }
+
+    function updateReturnBoxes(returnBoxes) {
+      const container = document.getElementById('return-boxes');
+      const existingBoxes = new Set(Array.from(container.children).map(child => child.id.replace('return-box-', '')));
+      Array.from(container.children).forEach(child => {
+        const readerIp = child.id.replace('return-box-', '');
+        if (!returnBoxes.some(b => b.readerIp === readerIp)) container.removeChild(child);
+      });
+      returnBoxes.forEach(box => {
+        console.log(`Return box: ${box.name}, EPCs: ${box.epcs.length}`);
+        let boxDiv = document.getElementById(`return-box-${box.readerIp}`);
+        if (!boxDiv) {
+          boxDiv = document.createElement('div');
+          boxDiv.className = 'return-box';
+          boxDiv.id = `return-box-${box.readerIp}`;
+          container.appendChild(boxDiv);
         }
+        const statusClass = box.status === 'active' ? 'active' : 'inactive';
+        boxDiv.innerHTML = `
+          <div class="shelf-header">
+            <h2>${box.name || 'Unnamed Return Box'}</h2>
+            <span class="status status-${statusClass}">${box.status}</span>
+          </div>
+          <p>Books detected: ${box.epcs.length}</p>
+        `;
+        boxDiv.onclick = () => showBooks(box.readerIp, box.epcs);
+      });
+    }
+
+    function showBooks(readerIp, books) {
+      selectedReaderIp = readerIp;
+      currentBooks = books || [];
+      currentBookIndex = 0;
+      console.log('Showing books for:', readerIp, currentBooks);
+      const modal = document.getElementById('book-modal');
+      modal.style.display = 'flex';
+      if (currentBooks.length === 0) {
+        document.getElementById('current-book').innerHTML = 'No books detected.';
+        document.getElementById('prev-book').innerHTML = '';
+        document.getElementById('next-book').innerHTML = '';
+        document.getElementById('prev-button').disabled = true;
+        document.getElementById('next-button').disabled = true;
+      } else {
+        updateModal();
       }
-  
-      // ... (updateModal, prevBook, nextBook, closeModal unchanged)
-  
-      fetchReturnBoxData();
-      setInterval(fetchReturnBoxData, 5000);
-    </script>
-  </body>
-  </html>
+    }
+
+    function updateModal() {
+      const currentBook = currentBooks[currentBookIndex];
+      const prevBook = currentBooks[currentBookIndex - 1];
+      const nextBook = currentBooks[currentBookIndex + 1];
+      const currentBookDiv = document.getElementById('current-book');
+      const prevBookDiv = document.getElementById('prev-book');
+      const nextBookDiv = document.getElementById('next-book');
+      const prevButton = document.getElementById('prev-button');
+      const nextButton = document.getElementById('next-button');
+      if (currentBook) {
+        currentBookDiv.innerHTML = `
+          <strong>${currentBook.title || 'Unknown Title'}</strong><br>
+          Author: ${currentBook.author ? currentBook.author.join(', ') : 'Unknown Author'}<br>
+          Status: ${currentBook.status || 'Unknown'}<br>
+          EPC: ${currentBook.epc}
+        `;
+      } else {
+        currentBookDiv.innerHTML = 'No books detected.';
+      }
+      prevBookDiv.innerHTML = prevBook
+        ? `<strong>${prevBook.title || 'Unknown Title'}</strong><br>${prevBook.author ? prevBook.author.join(', ') : 'Unknown Author'}`
+        : '';
+      nextBookDiv.innerHTML = nextBook
+        ? `<strong>${nextBook.title || 'Unknown Title'}</strong><br>${nextBook.author ? nextBook.author.join(', ') : 'Unknown Author'}`
+        : '';
+      prevButton.disabled = !prevBook;
+      nextButton.disabled = !nextBook;
+    }
+
+    function prevBook() {
+      if (currentBookIndex > 0) {
+        currentBookIndex--;
+        updateModal();
+      }
+    }
+
+    function nextBook() {
+      if (currentBookIndex < currentBooks.length - 1) {
+        currentBookIndex++;
+        updateModal();
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('book-modal').style.display = 'none';
+      selectedReaderIp = null;
+      currentBooks = [];
+      currentBookIndex = 0;
+    }
+
+    fetchReturnBoxData();
+    setInterval(fetchReturnBoxData, 5000);
+  </script>
+</body>
+</html>

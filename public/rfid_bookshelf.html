@@ -33,12 +33,12 @@
       border-radius: 5px;
       box-shadow: inset 0 2px 5px rgba(0,0,0,0.2);
       cursor: pointer;
+      color: white;
     }
     .shelf-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      color: white;
       margin-bottom: 10px;
     }
     .shelf-header h2 {
@@ -49,6 +49,7 @@
       font-size: 14px;
       padding: 5px 10px;
       border-radius: 3px;
+      color: white;
     }
     .status-active {
       background-color: green;
@@ -84,6 +85,7 @@
       right: 20px;
       font-size: 24px;
       cursor: pointer;
+      color: #333;
     }
     .book-large {
       background-color: #FFD700;
@@ -118,6 +120,9 @@
     .nav-button:disabled {
       background-color: #666;
       cursor: not-allowed;
+    }
+    p {
+      margin: 5px 0;
     }
   </style>
 </head>
@@ -181,7 +186,7 @@
         if (!shelves.some(s => s.readerIp === readerIp)) bookshelf.removeChild(child);
       });
       shelves.forEach(shelf => {
-        console.log('Shelf:', shelf.name, 'EPCs:', shelf.epcs.length);
+        console.log(`Shelf: ${shelf.name}, EPCs: ${shelf.epcs.length}`);
         let shelfDiv = document.getElementById(`shelf-${shelf.readerIp}`);
         if (!shelfDiv) {
           shelfDiv = document.createElement('div');
@@ -195,7 +200,7 @@
             <h2>${shelf.name || 'Unnamed Shelf'}</h2>
             <span class="status status-${statusClass}">${shelf.status}</span>
           </div>
-          <p>Books detected: ${shelf.epcs ? shelf.epcs.length : 0}</p>
+          <p>Books detected: ${shelf.epcs.length}</p>
         `;
         shelfDiv.onclick = () => showBooks(shelf.readerIp, shelf.epcs);
       });
@@ -210,7 +215,7 @@
       modal.style.display = 'flex';
       if (currentBooks.length === 0) {
         document.getElementById('current-book').innerHTML = 'No books detected.';
-       freedocument.getElementById('prev-book').innerHTML = '';
+        document.getElementById('prev-book').innerHTML = '';
         document.getElementById('next-book').innerHTML = '';
         document.getElementById('prev-button').disabled = true;
         document.getElementById('next-button').disabled = true;
@@ -238,14 +243,12 @@
       } else {
         currentBookDiv.innerHTML = 'No books detected.';
       }
-      prevBookDiv.innerHTML = prevBook ? `
-        <strong>${prevBook.title || 'Unknown Title'}</strong><br>
-        ${prevBook.author ? prevBook.author.join(', ') : 'Unknown Author'}
-      ` : '';
-      nextBookDiv.innerHTML = nextBook ? `
-        <strong>${nextBook.title || 'Unknown Title'}</strong><br>
-        ${nextBook.author ? nextBook.author.join(', ') : 'Unknown Author'}
-      ` : '';
+      prevBookDiv.innerHTML = prevBook
+        ? `<strong>${prevBook.title || 'Unknown Title'}</strong><br>${prevBook.author ? prevBook.author.join(', ') : 'Unknown Author'}`
+        : '';
+      nextBookDiv.innerHTML = nextBook
+        ? `<strong>${nextBook.title || 'Unknown Title'}</strong><br>${nextBook.author ? nextBook.author.join(', ') : 'Unknown Author'}`
+        : '';
       prevButton.disabled = !prevBook;
       nextButton.disabled = !nextBook;
     }
@@ -265,8 +268,7 @@
     }
 
     function closeModal() {
-      const modal = document.getElementById('book-modal');
-      modal.style.display = 'none';
+      document.getElementById('book-modal').style.display = 'none';
       selectedReaderIp = null;
       currentBooks = [];
       currentBookIndex = 0;
