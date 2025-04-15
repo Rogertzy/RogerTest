@@ -162,7 +162,7 @@ app.get('/api/rfid-readers', ensureDbConnected, async (req, res) => {
       const epcsForShelf = shelfEpcs.filter(epc => epc.readerIp === shelf.readerIp);
       return {
         readerIp: shelf.readerIp,
-        name: shelf.name || 'Unnamed Shelf', // Ensure name
+        name: shelf.name || 'Unnamed Shelf',
         status: connectionStatus.get(shelf.readerIp) ? 'active' : 'inactive',
         epcs: epcsForShelf,
       };
@@ -172,7 +172,7 @@ app.get('/api/rfid-readers', ensureDbConnected, async (req, res) => {
       const epcsForBox = returnBoxEpcs.filter(epc => epc.readerIp === box.readerIp);
       return {
         readerIp: box.readerIp,
-        name: box.name || 'Unnamed Return Box', // Ensure name
+        name: box.name || 'Unnamed Return Box',
         status: connectionStatus.get(box.readerIp) ? 'active' : 'inactive',
         epcs: epcsForBox,
       };
@@ -188,7 +188,7 @@ app.get('/api/rfid-readers', ensureDbConnected, async (req, res) => {
   }
 });
 
-// Add /api/readers for backward compatibility
+// Add /api/readers for compatibility
 app.get('/api/readers', ensureDbConnected, async (req, res) => {
   try {
     const shelves = await Shelf.find({}).select('readerIp name status lastSeen').lean();
