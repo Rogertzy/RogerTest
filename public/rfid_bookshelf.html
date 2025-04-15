@@ -56,6 +56,11 @@
         .status-inactive {
             background-color: red;
         }
+        .book-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
         .modal {
             display: none;
             position: fixed;
@@ -150,10 +155,12 @@
                     throw new Error(`HTTP error! Status: ${response.status}`);
                 }
                 const data = await response.json();
+                console.log('Fetched data:', data);
                 updateBookshelf(data.shelves);
                 if (selectedReaderIp) {
                     const shelf = data.shelves.find(s => s.readerIp === selectedReaderIp);
                     currentBooks = shelf ? shelf.epcs : [];
+                    console.log('Current books for', selectedReaderIp, ':', currentBooks);
                     if (currentBookIndex >= currentBooks.length) {
                         currentBookIndex = Math.max(0, currentBooks.length - 1);
                     }
@@ -200,6 +207,17 @@
                         <h2>${shelf.name}</h2>
                         <span class="status status-${statusClass}">${shelf.status}</span>
                     </div>
+                    <div class="book-list">
+                        ${shelf.epcs.length > 0
+                            ? shelf.epcs.map(book => `
+                                <div class="book-small">
+                                    <strong>${book.title || 'Unknown Title'}</strong><br>
+                                    Author: ${book.author ? book.author.join(', ') : 'Unknown Author'}<br>
+                                    EPC: ${book.epc}
+                                </div>
+                            `).join('')
+                            : '<p>No books detected.</p>'}
+                    </div>
                 `;
                 shelfDiv.onclick = () => showBooks(shelf.readerIp, shelf.epcs);
             });
@@ -208,6 +226,7 @@
         function showBooks(readerIp, books) {
             selectedReaderIp = readerIp;
             currentBooks = books || [];
+            console.log('Showing books for', readerIp, ':', currentBooks);
             currentBookIndex = 0;
             const modal = document.getElementById('book-modal');
             modal.style.display = 'flex';
