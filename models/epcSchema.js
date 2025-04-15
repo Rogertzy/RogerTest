@@ -12,7 +12,12 @@ const epcSchema = new mongoose.Schema({
     }, industryIdentifier: {
         type: [String],
     },
-    timestamp: { type: Date, default: Date.now } // Automatically add a timestamp
+    timestamp: { type: Date, default: Date.now },
+    readerIp: { type: String, default: null },
+    logs: [{
+    message: String,
+    timestamp: { type: Number, default: Date.now }
+  }]
 });
 
 // Export the EPC model
