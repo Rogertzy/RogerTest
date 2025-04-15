@@ -4,7 +4,8 @@ const mongoose = require('mongoose');
 const shelfSchema = new mongoose.Schema({
     readerIp: { type: String, required: true, unique: true }, // Reader IP must be unique and required
     name: { type: String, required: true }, // Shelf name is required
-    connected: { type: Boolean, default: false } // Default state for connectivity
+    connected: { type: Boolean, default: false }, // Default state for connectivity
+    epcs: [{ type: String }] // Array to store EPC codes
 });
 
 // Export the Shelf model
