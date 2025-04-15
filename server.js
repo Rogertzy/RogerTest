@@ -9,98 +9,93 @@ app.use(express.static('public'));
 app.use(express.json());
 
 const mongoUri = process.env.MONGO_URI || 'mongodb+srv://Admin:admin@library.8bgvj.mongodb.net/bookManagement?retryWrites=true&w=majority&appName=Library';
-if (!mongoUri) {
-  console.error('MONGO_URI environment variable is not set');
-  process.exit(1);
-}
 mongoose.connect(mongoUri, {
   serverSelectionTimeoutMS: 20000,
   connectTimeoutMS: 30000,
-})
-.then(() => console.log('Connected to MongoDB'))
-.catch(err => {
-  console.error('MongoDB connection error:', err);
-  process.exit(1);
-});
+}).then(() => console.log('Connected to MongoDB'))
+  .catch(err => {
+    console.error('MongoDB connection error:', err);
+    process.exit(1);
+  });
 
 const ensureDbConnected = (req, res, next) => {
   if (mongoose.connection.readyState !== 1) return res.status(503).json({ error: 'Database not connected' });
   next();
 };
 
-const detectedEpcs = { shelf: new Map(), returnBox: new Map() };
 const connectionStatus = new Map();
-
-// New schema for temporary EPC detections
-const DetectionSchema = new mongoose.Schema({
-  epc: { type: String, required: true },
-  readerIp: { type: String, required: true },
-  type: { type: String, enum: ['shelf', 'returnBox'], required: true },
-  timestamp: { type: Date, default: Date.now }
-});
-const Detection = mongoose.model('Detection', DetectionSchema);
 
 async function processShelfDetection(epc, readerIp) {
   try {
-      const existingEpc = await Epc.findOne({ epc });
-      if (!existingEpc) {
-          console.log(`Unregistered EPC '${epc}' detected by shelf reader ${readerIp}`);
-          return;
-      }
-      const shelf = await Shelf.findOne({ readerIp });
-      if (!shelf) throw new Error(`Shelf with IP ${readerIp} not found`);
-      const logMessage = `${new Date().toLocaleTimeString()} - EPC '${epc}' detected by shelf reader ${readerIp}`;
+    const existingEpc = await Epc.findOne({ epc });
+    const shelf = await Shelf.findOne({ readerIp });
+    if (!shelf) throw new Error(`Shelf with IP ${readerIp} not found`);
+    const logMessage = `${new Date().toLocaleTimeString()} - EPC '${epc}' detected by shelf reader ${readerIp}`;
+    if (existingEpc) {
       if (existingEpc.status !== 'in library') {
-          existingEpc.status = 'in library';
-          existingEpc.readerIp = readerIp;
-          existingEpc.timestamp = Date.now();
-          existingEpc.logs = existingEpc.logs || [];
-          existingEpc.logs.push({ message: logMessage, timestamp: Date.now() });
-          await existingEpc.save();
-          console.log(`EPC '${epc}' status changed to 'in library'`);
+        existingEpc.status = 'in library';
+        existingEpc.readerIp = readerIp;
+        existingEpc.timestamp = Date.now();
+        existingEpc.logs = existingEpc.logs || [];
+        existingEpc.logs.push({ message: logMessage, timestamp: Date.now() });
+        await existingEpc.save();
+        console.log(`EPC '${epc}' status changed to 'in library'`);
       } else {
-          existingEpc.readerIp = readerIp;
-          existingEpc.logs = existingEpc.logs || [];
-          existingEpc.logs.push({ message: logMessage, timestamp: Date.now() });
-          await existingEpc.save();
+        existingEpc.readerIp = readerIp;
+        existingEpc.logs = existingEpc.logs || [];
+        existingEpc.logs.push({ message: logMessage, timestamp: Date.now() });
+        await existingEpc.save();
       }
+    } else {
+      const newEpc = new Epc({
+        epc, title: 'Unknown Title', author: ['Unknown Author'], status: 'in library',
+        readerIp, timestamp: Date.now(), logs: [{ message: logMessage, timestamp: Date.now() }]
+      });
+      await newEpc.save();
+      console.log(`New EPC '${epc}' added to shelf`);
+    }
   } catch (error) {
-      console.error(`Error processing shelf EPC '${epc}':`, error.message);
-      throw error;
+    console.error(`Error processing shelf EPC '${epc}':`, error.message);
+    throw error;
   }
 }
 
 async function processReturn(epc, readerIp) {
   try {
-      const existingEpc = await Epc.findOne({ epc });
-      if (!existingEpc) {
-          console.log(`Unregistered EPC '${epc}' detected by return box reader ${readerIp}`);
-          return;
-      }
-      const returnBox = await ReturnBox.findOne({ readerIp });
-      if (!returnBox) throw new Error(`Return box with IP ${readerIp} not found`);
-      const logMessage = `${new Date().toLocaleTimeString()} - EPC '${epc}' detected by return box reader ${readerIp}`;
+    const existingEpc = await Epc.findOne({ epc });
+    const returnBox = await ReturnBox.findOne({ readerIp });
+    if (!returnBox) throw new Error(`Return box with IP ${readerIp} not found`);
+    const logMessage = `${new Date().toLocaleTimeString()} - EPC '${epc}' detected by return box reader ${readerIp}`;
+    if (existingEpc) {
       if (existingEpc.status !== 'in return box') {
-          existingEpc.status = 'in return box';
-          existingEpc.readerIp = readerIp;
-          existingEpc.timestamp = Date.now();
-          existingEpc.logs = existingEpc.logs || [];
-          existingEpc.logs.push({ message: logMessage, timestamp: Date.now() });
-          await existingEpc.save();
-          console.log(`EPC '${epc}' status changed to 'in return box'`);
+        existingEpc.status = 'in return box';
+        existingEpc.readerIp = readerIp;
+        existingEpc.timestamp = Date.now();
+        existingEpc.logs = existingEpc.logs || [];
+        existingEpc.logs.push({ message: logMessage, timestamp: Date.now() });
+        await existingEpc.save();
+        console.log(`EPC '${epc}' status changed to 'in return box'`);
       } else {
-          existingEpc.readerIp = readerIp;
-          existingEpc.logs = existingEpc.logs || [];
-          existingEpc.logs.push({ message: logMessage, timestamp: Date.now() });
-          await existingEpc.save();
+        existingEpc.readerIp = readerIp;
+        existingEpc.logs = existingEpc.logs || [];
+        existingEpc.logs.push({ message: logMessage, timestamp: Date.now() });
+        await existingEpc.save();
       }
+    } else {
+      const newEpc = new Epc({
+        epc, title: 'Unknown Title', author: ['Unknown Author'], status: 'in return box',
+        readerIp, timestamp: Date.now(), logs: [{ message: logMessage, timestamp: Date.now() }]
+      });
+      await newEpc.save();
+      console.log(`New EPC '${epc}' added to return box`);
+    }
   } catch (error) {
-      console.error(`Error processing return box EPC '${epc}':`, error.message);
-      throw error;
+    console.error(`Error processing return box EPC '${epc}':`, error.message);
+    throw error;
   }
 }
 
-app.post('/api/rfid-update', async (req, res) => {
+app.post('/api/rfid-update', ensureDbConnected, async (req, res) => {
   const { readerIp, epc, type, detected = true } = req.body;
   if (!readerIp || !epc || !type) {
     console.error('Missing fields:', { readerIp, epc, type });
@@ -110,53 +105,39 @@ app.post('/api/rfid-update', async (req, res) => {
     console.error('Invalid type:', type);
     return res.status(400).json({ error: 'Invalid type' });
   }
-  const store = type === 'shelf' ? detectedEpcs.shelf : detectedEpcs.returnBox;
   try {
     if (detected) {
       console.log(`Processing EPC '${epc}' for ${type} reader ${readerIp}`);
       if (type === 'shelf') await processShelfDetection(epc, readerIp);
       else await processReturn(epc, readerIp);
-      store.set(epc, { timestamp: Date.now(), readerIp });
-      const detection = await Detection.findOneAndUpdate(
-        { epc, readerIp, type },
-        { epc, readerIp, type, timestamp: Date.now() },
-        { upsert: true, new: true }
-      );
-      console.log('Detection saved:', detection);
     } else {
-      console.log(`Removing EPC '${epc}' from ${type} reader ${readerIp}`);
-      store.delete(epc);
-      const deleted = await Detection.deleteOne({ epc, readerIp, type });
-      console.log('Detection deleted:', deleted);
+      console.log(`EPC '${epc}' no longer detected by ${type} reader ${readerIp}`);
       const existingEpc = await Epc.findOne({ epc });
-      if (existingEpc && existingEpc.status === 'in library') {
-        const lastSeen = existingEpc.timestamp;
-        const now = Date.now();
-        const timeDiff = now - lastSeen;
-        if (timeDiff > 300000) {
-          existingEpc.status = 'borrowed';
-          existingEpc.readerIp = null;
-          existingEpc.timestamp = now;
-          existingEpc.logs = existingEpc.logs || [];
-          existingEpc.logs.push({
-            message: `EPC '${epc}' status changed to 'borrowed' after not being detected for 5 minutes`,
-            timestamp: now,
-          });
-          await existingEpc.save();
-          console.log(`EPC '${epc}' status changed to 'borrowed'`);
-        }
+      if (existingEpc && existingEpc.status !== 'borrowed') {
+        const logMessage = `${new Date().toLocaleTimeString()} - EPC '${epc}' no longer detected by ${type} reader ${readerIp}`;
+        existingEpc.status = 'borrowed';
+        existingEpc.readerIp = null;
+        existingEpc.timestamp = Date.now();
+        existingEpc.logs = existingEpc.logs || [];
+        existingEpc.logs.push({ message: logMessage, timestamp: Date.now() });
+        await existingEpc.save();
+        console.log(`EPC '${epc}' status changed to 'borrowed'`);
       }
     }
     res.status(200).json({ message: 'EPC processed' });
   } catch (error) {
-    console.error(`Error processing EPC '${epc}':`, error.message);
+    console.error('Error processing EPC:', error.message);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
 app.post('/api/connection-status', (req, res) => {
   const { readerIp, connected } = req.body;
-  if (!readerIp || typeof connected !== 'boolean') return res.status(400).json({ error: 'Missing fields' });
+  if (!readerIp || typeof connected !== 'boolean') {
+    console.error('Missing fields:', { readerIp, connected });
+    return res.status(400).json({ error: 'Missing fields' });
+  }
+  console.log(`Connection status for ${readerIp}: ${connected}`);
   connectionStatus.set(readerIp, connected);
   res.status(200).json({ message: 'Connection status updated' });
 });
@@ -166,25 +147,32 @@ app.get('/api/rfid-readers', ensureDbConnected, async (req, res) => {
     const allEpcs = await Epc.find().lean();
     const shelves = await Shelf.find().lean();
     const returnBoxes = await ReturnBox.find().lean();
-    
-    // Load detections from MongoDB
-    const detections = await Detection.find().lean();
-    detections.forEach(d => {
-      const store = d.type === 'shelf' ? detectedEpcs.shelf : detectedEpcs.returnBox;
-      store.set(d.epc, { timestamp: d.timestamp, readerIp: d.readerIp });
-    });
 
-    const shelfEpcs = Array.from(detectedEpcs.shelf.entries()).map(([epc, { timestamp, readerIp }]) => {
-      const dbEpc = allEpcs.find(e => e.epc === epc) || {};
-      const shelf = shelves.find(s => s.readerIp === readerIp) || { name: 'Unknown Shelf' };
-      return { epc, timestamp, readerIp, shelfName: shelf.name, logs: dbEpc.logs || [], ...dbEpc };
-    });
+    const shelfEpcs = allEpcs
+      .filter(epc => epc.status === 'in library' && epc.readerIp)
+      .map(epc => ({
+        epc: epc.epc,
+        title: epc.title,
+        author: epc.author,
+        status: epc.status,
+        readerIp: epc.readerIp,
+        timestamp: epc.timestamp,
+        logs: epc.logs || [],
+        shelfName: shelves.find(s => s.readerIp === epc.readerIp)?.name || 'Unknown'
+      }));
 
-    const returnBoxEpcs = Array.from(detectedEpcs.returnBox.entries()).map(([epc, { timestamp, readerIp }]) => {
-      const dbEpc = allEpcs.find(e => e.epc === epc) || {};
-      const returnBox = returnBoxes.find(r => r.readerIp === readerIp) || { name: 'Unknown Return Box' };
-      return { epc, timestamp, readerIp, returnBoxName: returnBox.name, logs: dbEpc.logs || [], ...dbEpc };
-    });
+    const returnBoxEpcs = allEpcs
+      .filter(epc => epc.status === 'in return box' && epc.readerIp)
+      .map(epc => ({
+        epc: epc.epc,
+        title: epc.title,
+        author: epc.author,
+        status: epc.status,
+        readerIp: epc.readerIp,
+        timestamp: epc.timestamp,
+        logs: epc.logs || [],
+        returnBoxName: returnBoxes.find(r => r.readerIp === epc.readerIp)?.name || 'Unknown'
+      }));
 
     const shelfReaders = shelves.map(shelf => {
       const epcsForShelf = shelfEpcs.filter(epc => epc.readerIp === shelf.readerIp);
@@ -192,7 +180,7 @@ app.get('/api/rfid-readers', ensureDbConnected, async (req, res) => {
         readerIp: shelf.readerIp,
         name: shelf.name || 'Unnamed Shelf',
         status: connectionStatus.get(shelf.readerIp) ? 'active' : 'inactive',
-        epcs: epcsForShelf,
+        epcs: epcsForShelf
       };
     });
 
@@ -202,16 +190,16 @@ app.get('/api/rfid-readers', ensureDbConnected, async (req, res) => {
         readerIp: box.readerIp,
         name: box.name || 'Unnamed Return Box',
         status: connectionStatus.get(box.readerIp) ? 'active' : 'inactive',
-        epcs: epcsForBox,
+        epcs: epcsForBox
       };
     });
 
-    console.log('Shelves:', shelfReaders);
-    console.log('ReturnBoxes:', returnBoxReaders);
+    console.log('Shelves:', shelfReaders.map(s => ({ name: s.name, epcs: s.epcs.length })));
+    console.log('ReturnBoxes:', returnBoxReaders.map(r => ({ name: r.name, epcs: r.epcs.length })));
 
     res.json({
       shelves: shelfReaders,
-      returnBoxes: returnBoxReaders,
+      returnBoxes: returnBoxReaders
     });
   } catch (error) {
     console.error('Error fetching readers:', error.message);
@@ -227,6 +215,7 @@ app.post('/api/shelves', ensureDbConnected, async (req, res) => {
     if (existing) return res.status(400).json({ error: 'Shelf exists' });
     const shelf = new Shelf({ name, readerIp });
     await shelf.save();
+    console.log(`Added shelf: ${name} (${readerIp})`);
     res.status(201).json(shelf);
   } catch (error) {
     console.error('Error adding shelf:', error.message);
@@ -237,8 +226,10 @@ app.post('/api/shelves', ensureDbConnected, async (req, res) => {
 app.delete('/api/shelves/:readerIp', ensureDbConnected, async (req, res) => {
   const { readerIp } = req.params;
   try {
-    await Shelf.deleteOne({ readerIp });
+    const result = await Shelf.deleteOne({ readerIp });
+    if (result.deletedCount === 0) return res.status(404).json({ error: 'Shelf not found' });
     connectionStatus.set(readerIp, false);
+    console.log(`Deleted shelf: ${readerIp}`);
     res.status(200).json({ message: 'Shelf deleted' });
   } catch (error) {
     console.error('Error deleting shelf:', error.message);
@@ -254,6 +245,7 @@ app.post('/api/return-boxes', ensureDbConnected, async (req, res) => {
     if (existing) return res.status(400).json({ error: 'Return box exists' });
     const box = new ReturnBox({ name, readerIp });
     await box.save();
+    console.log(`Added return box: ${name} (${readerIp})`);
     res.status(201).json(box);
   } catch (error) {
     console.error('Error adding return box:', error.message);
@@ -264,8 +256,10 @@ app.post('/api/return-boxes', ensureDbConnected, async (req, res) => {
 app.delete('/api/return-boxes/:readerIp', ensureDbConnected, async (req, res) => {
   const { readerIp } = req.params;
   try {
-    await ReturnBox.deleteOne({ readerIp });
+    const result = await ReturnBox.deleteOne({ readerIp });
+    if (result.deletedCount === 0) return res.status(404).json({ error: 'Return box not found' });
     connectionStatus.set(readerIp, false);
+    console.log(`Deleted return box: ${readerIp}`);
     res.status(200).json({ message: 'Return box deleted' });
   } catch (error) {
     console.error('Error deleting return box:', error.message);
