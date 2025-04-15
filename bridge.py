@@ -10,7 +10,7 @@ import re
 
 # Configuration
 CONFIG_FILE = "rfid_config.json"
-RENDER_URL = "https://comp-fyp.onrender.com/api/rfid-update"  # Updated Render URL
+RENDER_URL = "https://rfid-library.onrender.com//api/rfid-update"  # Updated Render URL
 LISTEN_PORT = 5000
 
 try:
@@ -219,7 +219,7 @@ def add_box(box_type):
             dialog.destroy()
             try:
                 response = requests.post(
-                    f"https://comp-fyp.onrender.com/api/{api_key}",  # Updated Render URL
+                    f"https://rfid-library.onrender.com//api/{api_key}",  # Updated Render URL
                     json={"name": name, "readerIp": ip},
                     headers={"Content-Type": "application/json"},
                     timeout=5
@@ -288,14 +288,14 @@ def edit_item(box_type, idx, item):
             dialog.destroy()
             
             try:
-                delete_endpoint = f"https://comp-fyp.onrender.com/api/{api_key}/{old_ip}"  # Updated Render URL
+                delete_endpoint = f"https://rfid-library.onrender.com//api/{api_key}/{old_ip}"  # Updated Render URL
                 delete_response = requests.delete(delete_endpoint)
                 if delete_response.status_code in (200, 204, 404):
                     log_message(f"Deleted old {box_type} {old_ip} from server - Status: {delete_response.status_code}")
                 else:
                     log_message(f"Warning: Failed to delete old {box_type} {old_ip} from server - Status: {delete_response.status_code}")
                 
-                add_endpoint = f"https://comp-fyp.onrender.com/api/{api_key}"  # Updated Render URL
+                add_endpoint = f"https://rfid-library.onrender.com//api/{api_key}"  # Updated Render URL
                 add_response = requests.post(
                     add_endpoint,
                     json={"name": name, "readerIp": ip},
@@ -324,7 +324,7 @@ def remove_selected():
                 save_config()
                 update_lists()
                 try:
-                    response = requests.delete(f"https://comp-fyp.onrender.com/api/shelves/{selected_ip}")  # Updated Render URL
+                    response = requests.delete(f"https://rfid-library.onrender.com//api/shelves/{selected_ip}")  # Updated Render URL
                     log_message(f"Deleted shelf {selected_ip} from server - Status: {response.status_code}")
                     if selected_ip in detected_epcs:
                         del detected_epcs[selected_ip]
@@ -337,7 +337,7 @@ def remove_selected():
                 save_config()
                 update_lists()
                 try:
-                    response = requests.delete(f"https://comp-fyp.onrender.com/api/return-boxes/{selected_ip}")  # Updated Render URL
+                    response = requests.delete(f"https://rfid-library.onrender.com//api/return-boxes/{selected_ip}")  # Updated Render URL
                     log_message(f"Deleted return box {selected_ip} from server - Status: {response.status_code}")
                     if selected_ip in detected_epcs:
                         del detected_epcs[selected_ip]
@@ -525,7 +525,7 @@ def send_to_render(ip, epc, box_type, detected=True, retries=3):
 
 def send_connection_status(ip, connected):
     try:
-        response = requests.post("https://comp-fyp.onrender.com/api/connection-status", json={  # Updated Render URL
+        response = requests.post("https://rfid-library.onrender.com//api/connection-status", json={  # Updated Render URL
             "readerIp": ip,
             "connected": connected
         }, headers={"Content-Type": "application/json"})
