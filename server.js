@@ -24,9 +24,12 @@ const connectionStatus = new Map();
 
 async function processShelfDetection(epc, readerIp) {
   try {
-    const existingEpc = await Epc.findOne({ epc });
     const shelf = await Shelf.findOne({ readerIp });
-    if (!shelf) throw new Error(`Shelf with IP ${readerIp} not found`);
+    if (!shelf) {
+      console.error(`Shelf with IP ${readerIp} not found in MongoDB`);
+      throw new Error(`Shelf with IP ${readerIp} not found`);
+    }
+    const existingEpc = await Epc.findOne({ epc });
     const logMessage = `${new Date().toLocaleTimeString()} - EPC '${epc}' detected by shelf reader ${readerIp}`;
     if (existingEpc) {
       if (existingEpc.status !== 'in library') {
@@ -45,23 +48,29 @@ async function processShelfDetection(epc, readerIp) {
       }
     } else {
       const newEpc = new Epc({
-        epc, title: 'Unknown Title', author: ['Unknown Author'], status: 'in library',
-        readerIp, timestamp: Date.now(), logs: [{ message: logMessage, timestamp: Date.now() }]
+        epc,
+        title: 'Unknown Title',
+        author: ['Unknown Author'],
+        status: 'in library',
+        readerIp,
+        timestamp: Date.now(),
+        logs: [{ message: logMessage, timestamp: Date.now() }],
       });
       await newEpc.save();
       console.log(`New EPC '${epc}' added to shelf`);
     }
+    console.log(`detectedEpcs.shelf after update:`, Array.from(detectedEpcs.shelf.entries()));
   } catch (error) {
-    console.error(`Error processing shelf EPC '${epc}':`, error.message);
+    console.error(`Error processing shelf EPC '${epc}':`, error.message, error.stack);
     throw error;
   }
 }
 
 async function processReturn(epc, readerIp) {
   try {
-    const existingEpc = await Epc.findOne({ epc });
     const returnBox = await ReturnBox.findOne({ readerIp });
     if (!returnBox) throw new Error(`Return box with IP ${readerIp} not found`);
+    const existingEpc = await Epc.findOne({ epc });
     const logMessage = `${new Date().toLocaleTimeString()} - EPC '${epc}' detected by return box reader ${readerIp}`;
     if (existingEpc) {
       if (existingEpc.status !== 'in return box') {
@@ -80,14 +89,19 @@ async function processReturn(epc, readerIp) {
       }
     } else {
       const newEpc = new Epc({
-        epc, title: 'Unknown Title', author: ['Unknown Author'], status: 'in return box',
-        readerIp, timestamp: Date.now(), logs: [{ message: logMessage, timestamp: Date.now() }]
+        epc,
+        title: 'Unknown Title',
+        author: ['Unknown Author'],
+        status: 'in return box',
+        readerIp,
+        timestamp: Date.now(),
+        logs: [{ message: logMessage, timestamp: Date.now() }],
       });
       await newEpc.save();
       console.log(`New EPC '${epc}' added to return box`);
     }
   } catch (error) {
-    console.error(`Error processing return box EPC '${epc}':`, error.message);
+    console.error(`Error processing return box EPC '${epc}':`, error.message, error.stack);
     throw error;
   }
 }
@@ -119,7 +133,7 @@ app.post('/api/rfid-update', async (req, res) => {
     }
     res.status(200).json({ message: 'EPC processed' });
   } catch (error) {
-    console.error('Error processing EPC:', error.message);
+    console.error('Error processing EPC:', error.message, error.stack);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -145,7 +159,7 @@ app.get('/api/rfid-readers', async (req, res) => {
 
     const returnBoxEpcs = Array.from(detectedEpcs.returnBox.entries()).map(([epc, { timestamp, readerIp }]) => {
       const dbEpc = allEpcs.find(e => e.epc === epc) || {};
-      const returnBox = returnBoxes.find(r => r.readerIp === box.readerIp) || { name: 'Unknown' };
+      const returnBox = returnBoxes.find(r => r.readerIp === readerIp) || { name: 'Unknown' };
       return { epc, timestamp, readerIp, returnBoxName: returnBox.name, logs: dbEpc.logs || [], ...dbEpc };
     });
 
@@ -176,7 +190,7 @@ app.get('/api/rfid-readers', async (req, res) => {
       returnBoxes: returnBoxReaders,
     });
   } catch (error) {
-    console.error('Error fetching readers:', error.message);
+    console.error('Error fetching readers:', error.message, error.stack);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -191,7 +205,7 @@ app.post('/api/shelves', async (req, res) => {
     await shelf.save();
     res.status(201).json(shelf);
   } catch (error) {
-    console.error('Error adding shelf:', error.message);
+    console.error('Error adding shelf:', error.message, error.stack);
     res.status(500).json({ error: 'Failed to add shelf' });
   }
 });
@@ -203,7 +217,7 @@ app.delete('/api/shelves/:readerIp', async (req, res) => {
     connectionStatus.set(readerIp, false);
     res.status(200).json({ message: 'Shelf deleted' });
   } catch (error) {
-    console.error('Error deleting shelf:', error.message);
+    console.error('Error deleting shelf:', error.message, error.stack);
     res.status(500).json({ error: 'Failed to delete shelf' });
   }
 });
@@ -218,7 +232,7 @@ app.post('/api/return-boxes', async (req, res) => {
     await box.save();
     res.status(201).json(box);
   } catch (error) {
-    console.error('Error adding return box:', error.message);
+    console.error('Error adding return box:', error.message, error.stack);
     res.status(500).json({ error: 'Failed to add return box' });
   }
 });
@@ -230,7 +244,7 @@ app.delete('/api/return-boxes/:readerIp', async (req, res) => {
     connectionStatus.set(readerIp, false);
     res.status(200).json({ message: 'Return box deleted' });
   } catch (error) {
-    console.error('Error deleting return box:', error.message);
+    console.error('Error deleting return box:', error.message, error.stack);
     res.status(500).json({ error: 'Failed to delete return box' });
   }
 });
@@ -243,14 +257,19 @@ app.post('/api/epc', async (req, res) => {
     const existing = await Epc.findOne({ epc });
     if (existing) return res.status(400).json({ error: 'EPC exists' });
     const newEpc = new Epc({
-      epc, title, author, status, industryIdentifier: industryIdentifier || ['N/A'],
-      timestamp: Date.now(), logs: [{ message: `${new Date().toLocaleTimeString()} - EPC '${epc}' manually added`, timestamp: Date.now() }]
+      epc,
+      title,
+      author,
+      status,
+      industryIdentifier: industryIdentifier || ['N/A'],
+      timestamp: Date.now(),
+      logs: [{ message: `${new Date().toLocaleTimeString()} - EPC '${epc}' manually added`, timestamp: Date.now() }],
     });
     await newEpc.save();
     console.log(`Added EPC '${epc}' with status '${status}'`);
     res.status(201).json(newEpc);
   } catch (error) {
-    console.error('Error adding EPC:', error.message);
+    console.error('Error adding EPC:', error.message, error.stack);
     res.status(500).json({ error: 'Failed to add EPC' });
   }
 });

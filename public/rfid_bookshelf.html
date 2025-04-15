@@ -56,6 +56,11 @@
         .status-inactive {
             background-color: red;
         }
+        .book-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
         .modal {
             display: none;
             position: fixed;
@@ -73,9 +78,6 @@
             border-radius: 10px;
             width: 80%;
             max-width: 800px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
             position: relative;
         }
         .close {
@@ -89,8 +91,10 @@
             background-color: #FFD700;
             color: #333;
             padding: 20px;
-            width: 200px;
-            text-align: center;
+            width: 100%;
+            max-height: 400px;
+            overflow-y: auto;
+            text-align: left;
             border-radius: 10px;
             box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
             font-size: 16px;
@@ -106,19 +110,6 @@
             font-size: 12px;
             opacity: 0.7;
         }
-        .nav-button {
-            background-color: #333;
-            color: white;
-            border: none;
-            padding: 10px;
-            cursor: pointer;
-            font-size: 24px;
-            border-radius: 5px;
-        }
-        .nav-button:disabled {
-            background-color: #666;
-            cursor: not-allowed;
-        }
     </style>
 </head>
 <body>
@@ -130,18 +121,13 @@
     <div class="modal" id="book-modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal()">×</span>
-            <button class="nav-button" id="prev-button" onclick="prevBook()"><</button>
-            <div class="book-small" id="prev-book"></div>
             <div class="book-large" id="current-book"></div>
-            <div class="book-small" id="next-book"></div>
-            <button class="nav-button" id="next-button" onclick="nextBook()">></button>
         </div>
     </div>
 
     <script>
         let selectedReaderIp = null;
         let currentBooks = [];
-        let currentBookIndex = 0;
 
         async function fetchBookshelfData() {
             try {
@@ -150,22 +136,15 @@
                     throw new Error(`HTTP error! Status: ${response.status}`);
                 }
                 const data = await response.json();
+                console.log('Fetched data:', data);
                 updateBookshelf(data.shelves);
-                if (selectedReaderIp) {
-                    const shelf = data.shelves.find(s => s.readerIp === selectedReaderIp);
-                    currentBooks = shelf ? shelf.epcs : [];
-                    if (currentBookIndex >= currentBooks.length) {
-                        currentBookIndex = Math.max(0, currentBooks.length - 1);
-                    }
-                    if (currentBooks.length === 0) {
-                        document.getElementById('current-book').innerHTML = 'No books detected.';
-                        document.getElementById('prev-book').innerHTML = '';
-                        document.getElementById('next-book').innerHTML = '';
-                        document.getElementById('prev-button').disabled = true;
-                        document.getElementById('next-button').disabled = true;
-                    } else {
-                        updateModal();
-                    }
+                const targetShelf = data.shelves.find(s => s.readerIp === '192.168.3.101') || 
+                                   data.shelves.find(s => s.epcs.length > 0);
+                if (targetShelf) {
+                    showBooks(targetShelf.readerIp, targetShelf.epcs);
+                } else {
+                    document.getElementById('book-modal').style.display = 'none';
+                    document.getElementById('current-book').innerHTML = 'No books detected.';
                 }
             } catch (error) {
                 console.error('Error fetching bookshelf data:', error);
@@ -200,6 +179,17 @@
                         <h2>${shelf.name}</h2>
                         <span class="status status-${statusClass}">${shelf.status}</span>
                     </div>
+                    <div class="book-list">
+                        ${shelf.epcs.length > 0
+                            ? shelf.epcs.map(book => `
+                                <div class="book-small">
+                                    <strong>${book.title || 'Unknown Title'}</strong><br>
+                                    Author: ${book.author ? book.author.join(', ') : 'Unknown Author'}<br>
+                                    EPC: ${book.epc}
+                                </div>
+                            `).join('')
+                            : '<p>No books detected.</p>'}
+                    </div>
                 `;
                 shelfDiv.onclick = () => showBooks(shelf.readerIp, shelf.epcs);
             });
@@ -208,66 +198,25 @@
         function showBooks(readerIp, books) {
             selectedReaderIp = readerIp;
             currentBooks = books || [];
-            currentBookIndex = 0;
+            console.log('Showing books for', readerIp, ':', currentBooks);
             const modal = document.getElementById('book-modal');
             modal.style.display = 'flex';
-            if (currentBooks.length === 0) {
-                document.getElementById('current-book').innerHTML = 'No books detected.';
-                document.getElementById('prev-book').innerHTML = '';
-                document.getElementById('next-book').innerHTML = '';
-                document.getElementById('prev-button').disabled = true;
-                document.getElementById('next-button').disabled = true;
-            } else {
-                updateModal();
-            }
+            updateModal();
         }
 
         function updateModal() {
-            const currentBook = currentBooks[currentBookIndex];
-            const prevBook = currentBooks[currentBookIndex - 1];
-            const nextBook = currentBooks[currentBookIndex + 1];
-
             const currentBookDiv = document.getElementById('current-book');
-            const prevBookDiv = document.getElementById('prev-book');
-            const nextBookDiv = document.getElementById('next-book');
-            const prevButton = document.getElementById('prev-button');
-            const nextButton = document.getElementById('next-button');
-
-            if (currentBook) {
-                currentBookDiv.innerHTML = `
-                    <strong>${currentBook.title || 'Unknown Title'}</strong><br>
-                    Author: ${currentBook.author ? currentBook.author.join(', ') : 'Unknown Author'}<br>
-                    Status: ${currentBook.status || 'Unknown'}<br>
-                    EPC: ${currentBook.epc}
-                `;
-            } else {
+            if (currentBooks.length === 0) {
                 currentBookDiv.innerHTML = 'No books detected.';
-            }
-
-            prevBookDiv.innerHTML = prevBook ? `
-                <strong>${prevBook.title || 'Unknown Title'}</strong><br>
-                ${prevBook.author ? prevBook.author.join(', ') : 'Unknown Author'}
-            ` : '';
-            nextBookDiv.innerHTML = nextBook ? `
-                <strong>${nextBook.title || 'Unknown Title'}</strong><br>
-                ${nextBook.author ? nextBook.author.join(', ') : 'Unknown Author'}
-            ` : '';
-
-            prevButton.disabled = !prevBook;
-            nextButton.disabled = !nextBook;
-        }
-
-        function prevBook() {
-            if (currentBookIndex > 0) {
-                currentBookIndex--;
-                updateModal();
-            }
-        }
-
-        function nextBook() {
-            if (currentBookIndex < currentBooks.length - 1) {
-                currentBookIndex++;
-                updateModal();
+            } else {
+                currentBookDiv.innerHTML = currentBooks.map(book => `
+                    <div style="margin-bottom: 10px;">
+                        <strong>${book.title || 'Unknown Title'}</strong><br>
+                        Author: ${book.author ? book.author.join(', ') : 'Unknown Author'}<br>
+                        Status: ${book.status || 'Unknown'}<br>
+                        EPC: ${book.epc}
+                    </div>
+                `).join('<hr>');
             }
         }
 
@@ -276,7 +225,6 @@
             modal.style.display = 'none';
             selectedReaderIp = null;
             currentBooks = [];
-            currentBookIndex = 0;
         }
 
         fetchBookshelfData();
