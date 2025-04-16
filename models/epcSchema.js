@@ -9,7 +9,9 @@ const epcSchema = new mongoose.Schema({
         type: String, 
         enum: ['borrowed', 'in return box', 'in library'], // Restrict to these values
         default: 'in library'
-    }, 
+    }, industryIdentifier: {
+        type: [String],
+    },
     timestamp: { type: Date, default: Date.now },
     readerIp: { type: String, default: null },
     logs: [{
