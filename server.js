@@ -234,14 +234,14 @@ mongoose.connect(mongoUri, {
   });
   
   app.post('/api/epc',  async (req, res) => {
-    const { epc, title, author, status, industryIdentifier } = req.body;
+    const { epc, title, author, status,  } = req.body;
     if (!epc || !title || !author || !status) return res.status(400).json({ error: 'EPC, title, author, status required' });
     if (!['borrowed', 'in return box', 'in library'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
     try {
       const existing = await Epc.findOne({ epc });
       if (existing) return res.status(400).json({ error: 'EPC exists' });
       const newEpc = new Epc({
-        epc, title, author, status, industryIdentifier: industryIdentifier || ['N/A'],
+        epc, title, author, status, 
         timestamp: Date.now(), logs: [{ message: `${new Date().toLocaleTimeString()} - EPC '${epc}' manually added`, timestamp: Date.now() }]
       });
       await newEpc.save();
